@@ -61,6 +61,7 @@ public class Translation {
     public static final String PLAYER_NOT_FOUND = "player_not_found";
     public static final String PROTECTION_NOTIFY = "protection_notify";
     public static final String PROTECTION_NOTIFY_GENERIC = "protection_notify_generic";
+    public static final String PROTECTION_ADMIN_BYPASS = "protection_admin_bypass";
     public static final String PURGE = "purge";
     public static final String RELOAD = "reload";
     public static final String STATUS = "status";

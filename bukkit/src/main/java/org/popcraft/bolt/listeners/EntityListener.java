@@ -63,6 +63,7 @@ import org.popcraft.bolt.protection.EntityProtection;
 import org.popcraft.bolt.protection.Protection;
 import org.popcraft.bolt.util.BlockLocation;
 import org.popcraft.bolt.util.BoltComponents;
+import org.popcraft.bolt.util.BoltItems;
 import org.popcraft.bolt.util.BoltPlayer;
 import org.popcraft.bolt.util.EnumUtil;
 import org.popcraft.bolt.util.Mode;
@@ -264,20 +265,15 @@ public final class EntityListener extends InteractionListener implements Listene
                     );
                 }
             }
-            if (shouldSendMessage && hasNotifyPermission) {
+            if (shouldSendMessage && hasNotifyPermission && canAccess && !BoltItems.playerHasKey(player, protection.getLockId())) {
                 final boolean noSpam = plugin.player(player.getUniqueId()).hasMode(Mode.NOSPAM);
                 if (!noSpam) {
-                    SchedulerUtil.schedule(plugin, player, () -> {
-                        if (!plugin.isProtected(entity)) {
-                            return;
-                        }
-                        BoltComponents.sendMessage(
-                                player,
-                                Translation.PROTECTION_NOTIFY_GENERIC,
-                                plugin.isUseActionBar(),
-                                Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player))
-                        );
-                    });
+                    BoltComponents.sendMessage(
+                            player,
+                            Translation.PROTECTION_ADMIN_BYPASS,
+                            plugin.isUseActionBar(),
+                            Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player))
+                    );
                 }
             }
             boltPlayer.setInteracted(shouldCancel);

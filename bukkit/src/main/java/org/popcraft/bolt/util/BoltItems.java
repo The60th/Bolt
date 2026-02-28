@@ -1,5 +1,8 @@
 package org.popcraft.bolt.util;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
@@ -157,11 +160,7 @@ public final class BoltItems {
         final UUID lockId = UUID.randomUUID();
         meta.getPersistentDataContainer().set(LOCK_ID_KEY, PersistentDataType.STRING, lockId.toString());
         meta.getPersistentDataContainer().set(LOCK_TIER_KEY, PersistentDataType.INTEGER, tier);
-        meta.displayName(net.kyori.adventure.text.Component.text(tierName(tier) + " Lock"));
-        meta.lore(List.of(
-                net.kyori.adventure.text.Component.text("Lock ID: " + lockId),
-                net.kyori.adventure.text.Component.text("Tier: " + tierName(tier))
-        ));
+        meta.displayName(noItalic(tierColor(tier)).append(Component.text(tierName(tier) + " Lock")));
         item.setItemMeta(meta);
         return item;
     }
@@ -170,8 +169,10 @@ public final class BoltItems {
         final ItemStack item = new ItemStack(Material.TRIPWIRE_HOOK);
         final ItemMeta meta = item.getItemMeta();
         meta.getPersistentDataContainer().set(KEY_BLANK_KEY, PersistentDataType.BYTE, (byte) 1);
-        meta.displayName(net.kyori.adventure.text.Component.text("Key Blank"));
-        meta.lore(List.of(net.kyori.adventure.text.Component.text("Pair with a lock to create a master key")));
+        meta.displayName(noItalic(NamedTextColor.GRAY).append(Component.text("Key Blank")));
+        meta.lore(List.of(
+                lore("Pair with a lock to create a master key")
+        ));
         item.setItemMeta(meta);
         return item;
     }
@@ -181,11 +182,7 @@ public final class BoltItems {
         final ItemMeta meta = item.getItemMeta();
         meta.getPersistentDataContainer().set(KEY_ID_KEY, PersistentDataType.STRING, lockId.toString());
         meta.getPersistentDataContainer().set(KEY_MASTER_KEY, PersistentDataType.BYTE, (byte) 1);
-        meta.displayName(net.kyori.adventure.text.Component.text("Master Key"));
-        meta.lore(List.of(
-                net.kyori.adventure.text.Component.text("Lock ID: " + lockId),
-                net.kyori.adventure.text.Component.text("Copyable")
-        ));
+        applyMasterKeyStyle(meta);
         item.setItemMeta(meta);
         return item;
     }
@@ -194,11 +191,7 @@ public final class BoltItems {
         final ItemStack item = new ItemStack(Material.TRIPWIRE_HOOK);
         final ItemMeta meta = item.getItemMeta();
         meta.getPersistentDataContainer().set(KEY_ID_KEY, PersistentDataType.STRING, lockId.toString());
-        meta.displayName(net.kyori.adventure.text.Component.text("Copy Key"));
-        meta.lore(List.of(
-                net.kyori.adventure.text.Component.text("Lock ID: " + lockId),
-                net.kyori.adventure.text.Component.text("Not copyable")
-        ));
+        applyCopyKeyStyle(meta);
         item.setItemMeta(meta);
         return item;
     }
@@ -208,8 +201,7 @@ public final class BoltItems {
         final ItemMeta meta = item.getItemMeta();
         meta.getPersistentDataContainer().set(LOCKPICK_KEY, PersistentDataType.BYTE, (byte) 1);
         meta.getPersistentDataContainer().set(LOCKPICK_TIER_KEY, PersistentDataType.INTEGER, tier);
-        meta.displayName(net.kyori.adventure.text.Component.text(tierName(tier) + " Lockpick"));
-        meta.lore(List.of(net.kyori.adventure.text.Component.text("Tier: " + tierName(tier))));
+        meta.displayName(noItalic(tierColor(tier)).append(Component.text(tierName(tier) + " Lockpick")));
         item.setItemMeta(meta);
         return item;
     }
@@ -221,11 +213,7 @@ public final class BoltItems {
         meta.getPersistentDataContainer().remove(KEY_BLANK_KEY);
         meta.getPersistentDataContainer().set(KEY_ID_KEY, PersistentDataType.STRING, lockId.toString());
         meta.getPersistentDataContainer().set(KEY_MASTER_KEY, PersistentDataType.BYTE, (byte) 1);
-        meta.displayName(net.kyori.adventure.text.Component.text("Master Key"));
-        meta.lore(List.of(
-                net.kyori.adventure.text.Component.text("Lock ID: " + lockId),
-                net.kyori.adventure.text.Component.text("Copyable")
-        ));
+        applyMasterKeyStyle(meta);
         item.setItemMeta(meta);
     }
 
@@ -233,12 +221,41 @@ public final class BoltItems {
         final ItemMeta meta = item.getItemMeta();
         meta.getPersistentDataContainer().remove(KEY_BLANK_KEY);
         meta.getPersistentDataContainer().set(KEY_ID_KEY, PersistentDataType.STRING, lockId.toString());
-        meta.displayName(net.kyori.adventure.text.Component.text("Copy Key"));
-        meta.lore(List.of(
-                net.kyori.adventure.text.Component.text("Lock ID: " + lockId),
-                net.kyori.adventure.text.Component.text("Not copyable")
-        ));
+        applyCopyKeyStyle(meta);
         item.setItemMeta(meta);
+    }
+
+    // --- Styling helpers ---
+
+    private static void applyMasterKeyStyle(ItemMeta meta) {
+        meta.displayName(noItalic(NamedTextColor.GOLD).append(Component.text("Master Key")));
+        meta.lore(List.of(
+                lore("Can be copied")
+        ));
+    }
+
+    private static void applyCopyKeyStyle(ItemMeta meta) {
+        meta.displayName(noItalic(NamedTextColor.YELLOW).append(Component.text("Copy Key")));
+        meta.lore(List.of(
+                lore("Cannot be copied")
+        ));
+    }
+
+    private static Component noItalic(NamedTextColor color) {
+        return Component.empty().color(color).decoration(TextDecoration.ITALIC, false);
+    }
+
+    private static NamedTextColor tierColor(int tier) {
+        return switch (tier) {
+            case 1 -> NamedTextColor.WHITE;
+            case 2 -> NamedTextColor.AQUA;
+            case 3 -> NamedTextColor.LIGHT_PURPLE;
+            default -> NamedTextColor.GRAY;
+        };
+    }
+
+    private static Component lore(String text) {
+        return Component.text(text).color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false);
     }
 
     // --- Utility ---
