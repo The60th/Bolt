@@ -184,7 +184,7 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
         saveDefaultConfig();
         final SQLStore.Configuration databaseConfiguration = new SQLStore.Configuration(
                 getConfig().getString("database.type", "sqlite").toLowerCase(),
-                getConfig().getString("database.path", "%s/Bolt/bolt.db".formatted(getPluginsPath().toFile().getName())),
+                Optional.ofNullable(getConfig().getString("database.path")).filter(s -> !s.isEmpty()).orElse("%s/Bolt/bolt.db".formatted(getPluginsPath().toFile().getName())),
                 getConfig().getString("database.hostname", ""),
                 getConfig().getString("database.database", ""),
                 getConfig().getString("database.username", ""),
