@@ -17,6 +17,22 @@ database:
 lockpicking:
   enabled: false
   jam-duration: 60
+  odds:
+    "2":
+      success: 0.50
+      jam: 0.10
+    "1":
+      success: 0.40
+      jam: 0.20
+    "0":
+      success: 0.33
+      jam: 0.33
+    "-1":
+      success: 0.20
+      jam: 0.40
+    "-2":
+      success: 0.10
+      jam: 0.50
 blocks:
   chest: { }
   trapped_chest: { }

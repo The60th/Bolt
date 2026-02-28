@@ -59,6 +59,13 @@ public class SQLStore implements Store {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+        try (final PreparedStatement alterBlocks = connection.prepareStatement(Statements.ALTER_TABLE_BLOCKS_ADD_TIER.get(configuration.type()).formatted(configuration.prefix()));
+             final PreparedStatement alterEntities = connection.prepareStatement(Statements.ALTER_TABLE_ENTITIES_ADD_TIER.get(configuration.type()).formatted(configuration.prefix()))) {
+            alterBlocks.execute();
+            alterEntities.execute();
+        } catch (SQLException ignored) {
+            // Column already exists, safe to ignore
+        }
         if (!usingMySQL) {
             try (final PreparedStatement createBlocksLockIdIndex = connection.prepareStatement(Statements.CREATE_INDEX_BLOCK_LOCK_ID.get(configuration.type()).formatted(configuration.prefix()));
                  final PreparedStatement createBlocksLocationIndex = connection.prepareStatement(Statements.CREATE_INDEX_BLOCK_LOCATION.get(configuration.type()).formatted(configuration.prefix()));
@@ -148,17 +155,23 @@ public class SQLStore implements Store {
     }
 
     private BlockProtection blockProtectionFromResultSet(final ResultSet resultSet) throws SQLException {
-        final String id = resultSet.getString(1);
-        final String lockId = resultSet.getString(2);
-        final long created = resultSet.getLong(3);
-        final long accessed = resultSet.getLong(4);
-        final long jammedUntil = resultSet.getLong(5);
-        final String world = resultSet.getString(6);
-        final int x = resultSet.getInt(7);
-        final int y = resultSet.getInt(8);
-        final int z = resultSet.getInt(9);
-        final String block = resultSet.getString(10);
-        return new BlockProtection(UUID.fromString(id), UUID.fromString(lockId), created, accessed, jammedUntil, world, x, y, z, block);
+        final String id = resultSet.getString("id");
+        final String lockId = resultSet.getString("lock_id");
+        final long created = resultSet.getLong("created");
+        final long accessed = resultSet.getLong("accessed");
+        final long jammedUntil = resultSet.getLong("jammed_until");
+        int tier;
+        try {
+            tier = resultSet.getInt("tier");
+        } catch (SQLException e) {
+            tier = 1;
+        }
+        final String world = resultSet.getString("world");
+        final int x = resultSet.getInt("x");
+        final int y = resultSet.getInt("y");
+        final int z = resultSet.getInt("z");
+        final String block = resultSet.getString("block");
+        return new BlockProtection(UUID.fromString(id), UUID.fromString(lockId), created, accessed, jammedUntil, tier, world, x, y, z, block);
     }
 
     @Override
@@ -173,11 +186,12 @@ public class SQLStore implements Store {
             replaceBlock.setLong(3, protection.getCreated());
             replaceBlock.setLong(4, protection.getAccessed());
             replaceBlock.setLong(5, protection.getJammedUntil());
-            replaceBlock.setString(6, protection.getWorld());
-            replaceBlock.setInt(7, protection.getX());
-            replaceBlock.setInt(8, protection.getY());
-            replaceBlock.setInt(9, protection.getZ());
-            replaceBlock.setString(10, protection.getBlock());
+            replaceBlock.setInt(6, protection.getTier());
+            replaceBlock.setString(7, protection.getWorld());
+            replaceBlock.setInt(8, protection.getX());
+            replaceBlock.setInt(9, protection.getY());
+            replaceBlock.setInt(10, protection.getZ());
+            replaceBlock.setString(11, protection.getBlock());
             replaceBlock.execute();
         } catch (SQLException e) {
             e.printStackTrace();
@@ -247,13 +261,19 @@ public class SQLStore implements Store {
     }
 
     private EntityProtection entityProtectionFromResultSet(final ResultSet resultSet) throws SQLException {
-        final String id = resultSet.getString(1);
-        final String lockId = resultSet.getString(2);
-        final long created = resultSet.getLong(3);
-        final long accessed = resultSet.getLong(4);
-        final long jammedUntil = resultSet.getLong(5);
-        final String entity = resultSet.getString(6);
-        return new EntityProtection(UUID.fromString(id), UUID.fromString(lockId), created, accessed, jammedUntil, entity);
+        final String id = resultSet.getString("id");
+        final String lockId = resultSet.getString("lock_id");
+        final long created = resultSet.getLong("created");
+        final long accessed = resultSet.getLong("accessed");
+        final long jammedUntil = resultSet.getLong("jammed_until");
+        int tier;
+        try {
+            tier = resultSet.getInt("tier");
+        } catch (SQLException e) {
+            tier = 1;
+        }
+        final String entity = resultSet.getString("entity");
+        return new EntityProtection(UUID.fromString(id), UUID.fromString(lockId), created, accessed, jammedUntil, tier, entity);
     }
 
     @Override
@@ -268,7 +288,8 @@ public class SQLStore implements Store {
             replaceEntity.setLong(3, protection.getCreated());
             replaceEntity.setLong(4, protection.getAccessed());
             replaceEntity.setLong(5, protection.getJammedUntil());
-            replaceEntity.setString(6, protection.getEntity());
+            replaceEntity.setInt(6, protection.getTier());
+            replaceEntity.setString(7, protection.getEntity());
             replaceEntity.execute();
         } catch (SQLException e) {
             e.printStackTrace();

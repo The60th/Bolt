@@ -6,7 +6,11 @@ public final class EntityProtection extends Protection {
     private String entity;
 
     public EntityProtection(UUID id, UUID lockId, long created, long accessed, long jammedUntil, String entity) {
-        super(id, lockId, created, accessed, jammedUntil);
+        this(id, lockId, created, accessed, jammedUntil, 1, entity);
+    }
+
+    public EntityProtection(UUID id, UUID lockId, long created, long accessed, long jammedUntil, int tier, String entity) {
+        super(id, lockId, created, accessed, jammedUntil, tier);
         this.entity = entity;
     }
 
@@ -26,6 +30,7 @@ public final class EntityProtection extends Protection {
                 ", created=" + created +
                 ", accessed=" + accessed +
                 ", jammedUntil=" + jammedUntil +
+                ", tier=" + tier +
                 ", entity='" + entity + '\'' +
                 '}';
     }

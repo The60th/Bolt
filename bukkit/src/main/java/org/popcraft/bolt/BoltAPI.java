@@ -66,7 +66,7 @@ public interface BoltAPI {
     boolean isProtectedExact(final Entity entity);
 
     /**
-     * Creates a new block protection. The created protection is NOT saved to storage, you must call {@link #saveProtection(Protection)}
+     * Creates a new block protection with tier 1 (Basic). The created protection is NOT saved to storage, you must call {@link #saveProtection(Protection)}
      * for this protection to exist in the world. This method does not check if the provided block can normally be protected, use
      * {@link #isProtectable(Block)} to check that.
      *
@@ -77,7 +77,19 @@ public interface BoltAPI {
     BlockProtection createProtection(final Block block, final UUID lockId);
 
     /**
-     * Creates a new entity protection. The created protection is NOT saved to storage, you must call {@link #saveProtection(Protection)}
+     * Creates a new block protection with a specified tier. The created protection is NOT saved to storage, you must call {@link #saveProtection(Protection)}
+     * for this protection to exist in the world. This method does not check if the provided block can normally be protected, use
+     * {@link #isProtectable(Block)} to check that.
+     *
+     * @param block block to be protected
+     * @param lockId UUID of the lock. Players with a matching key item can access this protection.
+     * @param tier lock tier (1=Basic, 2=Reinforced, 3=Fortified)
+     * @return protection object representing the newly created protection
+     */
+    BlockProtection createProtection(final Block block, final UUID lockId, final int tier);
+
+    /**
+     * Creates a new entity protection with tier 1 (Basic). The created protection is NOT saved to storage, you must call {@link #saveProtection(Protection)}
      * for this protection to exist in the world. This method does not check if the provided entity can normally be protected, use
      * {@link #isProtectable(Entity)} to check that.
      *
@@ -86,6 +98,18 @@ public interface BoltAPI {
      * @return protection object representing the newly created protection
      */
     EntityProtection createProtection(final Entity entity, final UUID lockId);
+
+    /**
+     * Creates a new entity protection with a specified tier. The created protection is NOT saved to storage, you must call {@link #saveProtection(Protection)}
+     * for this protection to exist in the world. This method does not check if the provided entity can normally be protected, use
+     * {@link #isProtectable(Entity)} to check that.
+     *
+     * @param entity entity to be protected
+     * @param lockId UUID of the lock. Players with a matching key item can access this protection.
+     * @param tier lock tier (1=Basic, 2=Reinforced, 3=Fortified)
+     * @return protection object representing the newly created protection
+     */
+    EntityProtection createProtection(final Entity entity, final UUID lockId, final int tier);
 
     /**
      * Loads ALL block and entity protections in all worlds.

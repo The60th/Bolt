@@ -8,13 +8,19 @@ public sealed abstract class Protection permits BlockProtection, EntityProtectio
     protected long created;
     protected long accessed;
     protected long jammedUntil;
+    protected int tier;
 
     protected Protection(UUID id, UUID lockId, long created, long accessed, long jammedUntil) {
+        this(id, lockId, created, accessed, jammedUntil, 1);
+    }
+
+    protected Protection(UUID id, UUID lockId, long created, long accessed, long jammedUntil, int tier) {
         this.id = id;
         this.lockId = lockId;
         this.created = created;
         this.accessed = accessed;
         this.jammedUntil = jammedUntil;
+        this.tier = tier;
     }
 
     public UUID getId() {
@@ -53,6 +59,14 @@ public sealed abstract class Protection permits BlockProtection, EntityProtectio
         this.jammedUntil = jammedUntil;
     }
 
+    public int getTier() {
+        return tier;
+    }
+
+    public void setTier(int tier) {
+        this.tier = tier;
+    }
+
     public boolean isJammed() {
         return jammedUntil > System.currentTimeMillis();
     }
@@ -65,6 +79,7 @@ public sealed abstract class Protection permits BlockProtection, EntityProtectio
                 ", created=" + created +
                 ", accessed=" + accessed +
                 ", jammedUntil=" + jammedUntil +
+                ", tier=" + tier +
                 '}';
     }
 }

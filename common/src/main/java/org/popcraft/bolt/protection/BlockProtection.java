@@ -10,7 +10,11 @@ public final class BlockProtection extends Protection {
     private String block;
 
     public BlockProtection(UUID id, UUID lockId, long created, long accessed, long jammedUntil, String world, int x, int y, int z, String block) {
-        super(id, lockId, created, accessed, jammedUntil);
+        this(id, lockId, created, accessed, jammedUntil, 1, world, x, y, z, block);
+    }
+
+    public BlockProtection(UUID id, UUID lockId, long created, long accessed, long jammedUntil, int tier, String world, int x, int y, int z, String block) {
+        super(id, lockId, created, accessed, jammedUntil, tier);
         this.world = world;
         this.x = x;
         this.y = y;
@@ -66,6 +70,7 @@ public final class BlockProtection extends Protection {
                 ", created=" + created +
                 ", accessed=" + accessed +
                 ", jammedUntil=" + jammedUntil +
+                ", tier=" + tier +
                 ", world='" + world + '\'' +
                 ", x=" + x +
                 ", y=" + y +

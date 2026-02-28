@@ -71,6 +71,19 @@ public class Translation {
     public static final String STORAGE_IMPORT_STARTED = "storage_import_started";
     public static final String STORAGE_IMPORT_COMPLETED = "storage_import_completed";
     public static final String STORAGE_IN_PROGRESS = "storage_in_progress";
+    public static final String GIVE_LOCK = "give_lock";
+    public static final String GIVE_KEY_BLANK = "give_key_blank";
+    public static final String GIVE_LOCKPICK = "give_lockpick";
+    public static final String GIVE_MASTER_KEY = "give_master_key";
+    public static final String GIVE_COPY_KEY = "give_copy_key";
+    public static final String GIVE_INVALID_TIER = "give_invalid_tier";
+    public static final String GIVE_INVALID_UUID = "give_invalid_uuid";
+    public static final String PAIR_SUCCESS = "pair_success";
+    public static final String PAIR_NEED_LOCK_MAIN_HAND = "pair_need_lock_main_hand";
+    public static final String PAIR_NEED_KEY_BLANK_OFF_HAND = "pair_need_key_blank_off_hand";
+    public static final String COPY_SUCCESS = "copy_success";
+    public static final String COPY_NEED_MASTER_KEY_MAIN_HAND = "copy_need_master_key_main_hand";
+    public static final String COPY_NEED_KEY_BLANK_OFF_HAND = "copy_need_key_blank_off_hand";
     public static final String UNKNOWN = "unknown";
     public static final String UNLOCK = "unlock";
     public static final String YOU = "you";
@@ -109,6 +122,12 @@ public class Translation {
     public static final String HELP_COMMAND_LONG_LOCK = "help_command_long_lock";
     public static final String HELP_COMMAND_LONG_LOCKPICK = "help_command_long_lockpick";
     public static final String HELP_COMMAND_LONG_MODE = "help_command_long_mode";
+    public static final String HELP_COMMAND_SHORT_GIVE = "help_command_short_give";
+    public static final String HELP_COMMAND_SHORT_PAIR = "help_command_short_pair";
+    public static final String HELP_COMMAND_SHORT_COPY = "help_command_short_copy";
+    public static final String HELP_COMMAND_LONG_GIVE = "help_command_long_give";
+    public static final String HELP_COMMAND_LONG_PAIR = "help_command_long_pair";
+    public static final String HELP_COMMAND_LONG_COPY = "help_command_long_copy";
     public static final String HELP_COMMAND_LONG_UNLOCK = "help_command_long_unlock";
 
     private Translation() {
@@ -140,6 +159,7 @@ public class Translation {
         public static final String CREATED_TIME = "created_time";
         public static final String ACCESSED_TIME = "accessed_time";
         public static final String NUMBER = "number";
+        public static final String TIER = "tier";
 
         private Placeholder() {
         }

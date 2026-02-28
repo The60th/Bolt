@@ -99,11 +99,15 @@ abstract class InteractionListener {
                         break;
                     }
                     final UUID effectiveLockId = lockId != null ? lockId : UUID.randomUUID();
+                    int lockTier = BoltItems.getHeldLockTier(player);
+                    if (lockTier <= 0) {
+                        lockTier = 1;
+                    }
                     final Protection newProtection;
                     if (object instanceof final Block block) {
-                        newProtection = plugin.createProtection(block, effectiveLockId);
+                        newProtection = plugin.createProtection(block, effectiveLockId, lockTier);
                     } else if (object instanceof final Entity entity) {
-                        newProtection = plugin.createProtection(entity, effectiveLockId);
+                        newProtection = plugin.createProtection(entity, effectiveLockId, lockTier);
                     } else {
                         throw new IllegalStateException("Protection is not a block or entity");
                     }
@@ -157,7 +161,8 @@ abstract class InteractionListener {
                             Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player)),
                             Placeholder.component(Translation.Placeholder.LOCK_ID, Component.text(protection.getLockId().toString())),
                             Placeholder.component(Translation.Placeholder.CREATED_TIME, Time.relativeTimestamp(protection.getCreated(), player)),
-                            Placeholder.component(Translation.Placeholder.ACCESSED_TIME, Time.relativeTimestamp(protection.getAccessed(), player))
+                            Placeholder.component(Translation.Placeholder.ACCESSED_TIME, Time.relativeTimestamp(protection.getAccessed(), player)),
+                            Placeholder.component(Translation.Placeholder.TIER, Component.text(BoltItems.tierName(protection.getTier())))
                     );
                 } else {
                     BoltComponents.sendMessage(
@@ -195,8 +200,15 @@ abstract class InteractionListener {
                     );
                     break;
                 }
-                final int outcome = ThreadLocalRandom.current().nextInt(3);
-                if (outcome == 0) {
+                int pickTier = BoltItems.getHeldLockpickTier(player);
+                if (pickTier <= 0) {
+                    pickTier = 1;
+                }
+                final int lockTier = protection.getTier();
+                final double successChance = plugin.getLockpickSuccessChance(pickTier, lockTier);
+                final double jamChance = plugin.getLockpickJamChance(pickTier, lockTier);
+                final double roll = ThreadLocalRandom.current().nextDouble();
+                if (roll < successChance) {
                     // Success: remove the protection
                     plugin.removeProtection(protection);
                     BoltComponents.sendMessage(
@@ -205,7 +217,7 @@ abstract class InteractionListener {
                             plugin.isUseActionBar(),
                             Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player))
                     );
-                } else if (outcome == 1) {
+                } else if (roll < successChance + jamChance) {
                     // Jam: set jammed until
                     final long jamUntil = System.currentTimeMillis() + (plugin.getLockpickJamDuration() * 1000L);
                     protection.setJammedUntil(jamUntil);

@@ -65,6 +65,12 @@ permissions:
     default: true
   bolt.command.unlock:
     default: true
+  bolt.command.give:
+    default: op
+  bolt.command.pair:
+    default: true
+  bolt.command.copy:
+    default: true
   bolt.protection.notify:
     default: op
   bolt.protection.notify.self:

@@ -28,11 +28,14 @@ import org.popcraft.bolt.command.BoltCommand;
 import org.popcraft.bolt.command.callback.CallbackManager;
 import org.popcraft.bolt.command.impl.AdminCommand;
 import org.popcraft.bolt.command.impl.CallbackCommand;
+import org.popcraft.bolt.command.impl.CopyCommand;
+import org.popcraft.bolt.command.impl.GiveCommand;
 import org.popcraft.bolt.command.impl.HelpCommand;
 import org.popcraft.bolt.command.impl.InfoCommand;
 import org.popcraft.bolt.command.impl.LockCommand;
 import org.popcraft.bolt.command.impl.LockpickCommand;
 import org.popcraft.bolt.command.impl.ModeCommand;
+import org.popcraft.bolt.command.impl.PairCommand;
 import org.popcraft.bolt.command.impl.UnlockCommand;
 import org.popcraft.bolt.data.ProfileCache;
 import org.popcraft.bolt.data.SQLStore;
@@ -170,6 +173,8 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
     private boolean allowRedstoneOnLocked;
     private boolean lockpickingEnabled;
     private int lockpickJamDuration;
+    private final Map<Integer, Double> lockpickSuccessChances = new HashMap<>();
+    private final Map<Integer, Double> lockpickJamChances = new HashMap<>();
     private Bolt bolt;
     private CallbackManager callbackManager;
     private EventBus<Event> eventBus;
@@ -226,6 +231,7 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
         this.allowRedstoneOnLocked = getConfig().getBoolean("settings.allow-redstone-on-locked", true);
         this.lockpickingEnabled = getConfig().getBoolean("lockpicking.enabled", false);
         this.lockpickJamDuration = getConfig().getInt("lockpicking.jam-duration", 60);
+        loadLockpickOdds();
         registerProtectableBlocks();
         nagInvalidHopperConfig();
         initializeMatchers();
@@ -379,11 +385,14 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
 
     private void registerCommands() {
         commands.put("admin", new AdminCommand(this));
+        commands.put("copy", new CopyCommand(this));
+        commands.put("give", new GiveCommand(this));
         commands.put("help", new HelpCommand(this));
         commands.put("info", new InfoCommand(this));
         commands.put("lock", new LockCommand(this));
         commands.put("lockpick", new LockpickCommand(this));
         commands.put("mode", new ModeCommand(this));
+        commands.put("pair", new PairCommand(this));
         commands.put("unlock", new UnlockCommand(this));
         commands.put("callback", new CallbackCommand(this));
     }
@@ -479,6 +488,45 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
         return lockpickJamDuration;
     }
 
+    private void loadLockpickOdds() {
+        lockpickSuccessChances.clear();
+        lockpickJamChances.clear();
+        final var odds = getConfig().getConfigurationSection("lockpicking.odds");
+        if (odds != null) {
+            for (final String key : odds.getKeys(false)) {
+                try {
+                    final int diff = Integer.parseInt(key);
+                    lockpickSuccessChances.put(diff, odds.getDouble(key + ".success", 0.33));
+                    lockpickJamChances.put(diff, odds.getDouble(key + ".jam", 0.33));
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        // Defaults if config section is absent
+        if (lockpickSuccessChances.isEmpty()) {
+            lockpickSuccessChances.put(2, 0.50);
+            lockpickSuccessChances.put(1, 0.40);
+            lockpickSuccessChances.put(0, 0.33);
+            lockpickSuccessChances.put(-1, 0.20);
+            lockpickSuccessChances.put(-2, 0.10);
+            lockpickJamChances.put(2, 0.10);
+            lockpickJamChances.put(1, 0.20);
+            lockpickJamChances.put(0, 0.33);
+            lockpickJamChances.put(-1, 0.40);
+            lockpickJamChances.put(-2, 0.50);
+        }
+    }
+
+    public double getLockpickSuccessChance(int pickTier, int lockTier) {
+        final int diff = pickTier - lockTier;
+        return lockpickSuccessChances.getOrDefault(diff, lockpickSuccessChances.getOrDefault(0, 0.33));
+    }
+
+    public double getLockpickJamChance(int pickTier, int lockTier) {
+        final int diff = pickTier - lockTier;
+        return lockpickJamChances.getOrDefault(diff, lockpickJamChances.getOrDefault(0, 0.33));
+    }
+
     public ProfileCache getProfileCache() {
         return profileCache;
     }
@@ -556,14 +604,24 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
 
     @Override
     public BlockProtection createProtection(final Block block, final UUID lockId) {
+        return createProtection(block, lockId, 1);
+    }
+
+    @Override
+    public BlockProtection createProtection(final Block block, final UUID lockId, final int tier) {
         final long now = System.currentTimeMillis();
-        return new BlockProtection(UUID.randomUUID(), lockId, now, now, 0, block.getWorld().getName(), block.getX(), block.getY(), block.getZ(), block.getType().name());
+        return new BlockProtection(UUID.randomUUID(), lockId, now, now, 0, tier, block.getWorld().getName(), block.getX(), block.getY(), block.getZ(), block.getType().name());
     }
 
     @Override
     public EntityProtection createProtection(final Entity entity, final UUID lockId) {
+        return createProtection(entity, lockId, 1);
+    }
+
+    @Override
+    public EntityProtection createProtection(final Entity entity, final UUID lockId, final int tier) {
         final long now = System.currentTimeMillis();
-        return new EntityProtection(entity.getUniqueId(), lockId, now, now, 0, entity.getType().name());
+        return new EntityProtection(entity.getUniqueId(), lockId, now, now, 0, tier, entity.getType().name());
     }
 
     @Override
