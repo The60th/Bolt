@@ -20,18 +20,11 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.popcraft.bolt.BoltPlugin;
 import org.popcraft.bolt.protection.Protection;
-import org.popcraft.bolt.source.Source;
-import org.popcraft.bolt.source.SourceResolver;
-import org.popcraft.bolt.source.SourceTypeResolver;
-import org.popcraft.bolt.source.SourceTypes;
 import org.popcraft.bolt.util.BoltPlayer;
 import org.popcraft.bolt.util.EnumUtil;
 import org.popcraft.bolt.util.Permission;
 
 public final class InventoryListener implements Listener {
-    private static final SourceResolver BLOCK_SOURCE_RESOLVER = new SourceTypeResolver(Source.of(SourceTypes.BLOCK));
-    private static final SourceResolver REDSTONE_SOURCE_RESOLVER = new SourceTypeResolver(Source.of(SourceTypes.REDSTONE));
-
     // These exist only in newer versions of 1.21.4 and only in Paper.
     private static final InventoryAction PICKUP_FROM_BUNDLE = EnumUtil.valueOf(InventoryAction.class, "PICKUP_FROM_BUNDLE").orElse(null);
     private static final InventoryAction PICKUP_ALL_INTO_BUNDLE = EnumUtil.valueOf(InventoryAction.class, "PICKUP_ALL_INTO_BUNDLE").orElse(null);
@@ -145,19 +138,26 @@ public final class InventoryListener implements Listener {
         }
         // Droppers can move items to another container, but they need to be activated by redstone to do so
         if (sourceProtection != null && InventoryType.DROPPER.equals(e.getSource().getType())) {
-            if (!plugin.canAccess(sourceProtection, REDSTONE_SOURCE_RESOLVER, Permission.REDSTONE)) {
+            if (!plugin.canAccessRedstone(sourceProtection)) {
                 e.setCancelled(true);
                 return;
             }
         }
         if (sourceProtection != null && destinationProtection != null) {
-            if (!plugin.canAccess(destinationProtection, sourceProtection.getOwner(), Permission.DEPOSIT) || !plugin.canAccess(sourceProtection, destinationProtection.getOwner(), Permission.WITHDRAW)) {
+            // Both are protected: allow only if they share the same lockId
+            if (!plugin.canAccessHopperTransfer(sourceProtection, destinationProtection)) {
                 e.setCancelled(true);
             }
-        } else if (sourceProtection != null && !plugin.canAccess(sourceProtection, BLOCK_SOURCE_RESOLVER, Permission.WITHDRAW)) {
-            e.setCancelled(true);
-        } else if (destinationProtection != null && !plugin.canAccess(destinationProtection, BLOCK_SOURCE_RESOLVER, Permission.DEPOSIT)) {
-            e.setCancelled(true);
+        } else if (sourceProtection != null) {
+            // Only source is protected: non-player access
+            if (!plugin.canAccessNonPlayer(sourceProtection)) {
+                e.setCancelled(true);
+            }
+        } else {
+            // Only destination is protected: non-player access
+            if (!plugin.canAccessNonPlayer(destinationProtection)) {
+                e.setCancelled(true);
+            }
         }
     }
 

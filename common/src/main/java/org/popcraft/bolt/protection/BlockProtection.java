@@ -1,6 +1,5 @@
 package org.popcraft.bolt.protection;
 
-import java.util.Map;
 import java.util.UUID;
 
 public final class BlockProtection extends Protection {
@@ -10,8 +9,8 @@ public final class BlockProtection extends Protection {
     private int z;
     private String block;
 
-    public BlockProtection(UUID id, UUID owner, String type, long created, long accessed, Map<String, String> access, String world, int x, int y, int z, String block) {
-        super(id, owner, type, created, accessed, access);
+    public BlockProtection(UUID id, UUID lockId, long created, long accessed, long jammedUntil, String world, int x, int y, int z, String block) {
+        super(id, lockId, created, accessed, jammedUntil);
         this.world = world;
         this.x = x;
         this.y = y;
@@ -63,11 +62,10 @@ public final class BlockProtection extends Protection {
     public String toString() {
         return "BlockProtection{" +
                 "id=" + id +
-                ", owner=" + owner +
-                ", type='" + type + '\'' +
+                ", lockId=" + lockId +
                 ", created=" + created +
                 ", accessed=" + accessed +
-                ", access=" + access +
+                ", jammedUntil=" + jammedUntil +
                 ", world='" + world + '\'' +
                 ", x=" + x +
                 ", y=" + y +

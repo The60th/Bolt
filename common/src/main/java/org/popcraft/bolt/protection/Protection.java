@@ -1,43 +1,32 @@
 package org.popcraft.bolt.protection;
 
-import java.util.Map;
 import java.util.UUID;
 
 public sealed abstract class Protection permits BlockProtection, EntityProtection {
     protected final UUID id;
-    protected UUID owner;
-    protected String type;
+    protected UUID lockId;
     protected long created;
     protected long accessed;
-    protected Map<String, String> access;
+    protected long jammedUntil;
 
-    protected Protection(UUID id, UUID owner, String type, long created, long accessed, Map<String, String> access) {
+    protected Protection(UUID id, UUID lockId, long created, long accessed, long jammedUntil) {
         this.id = id;
-        this.owner = owner;
-        this.type = type;
+        this.lockId = lockId;
         this.created = created;
         this.accessed = accessed;
-        this.access = access;
+        this.jammedUntil = jammedUntil;
     }
 
     public UUID getId() {
         return id;
     }
 
-    public UUID getOwner() {
-        return owner;
+    public UUID getLockId() {
+        return lockId;
     }
 
-    public void setOwner(UUID owner) {
-        this.owner = owner;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public void setType(String type) {
-        this.type = type;
+    public void setLockId(UUID lockId) {
+        this.lockId = lockId;
     }
 
     public long getCreated() {
@@ -56,23 +45,26 @@ public sealed abstract class Protection permits BlockProtection, EntityProtectio
         this.accessed = accessed;
     }
 
-    public Map<String, String> getAccess() {
-        return access;
+    public long getJammedUntil() {
+        return jammedUntil;
     }
 
-    public void setAccess(Map<String, String> access) {
-        this.access = access;
+    public void setJammedUntil(long jammedUntil) {
+        this.jammedUntil = jammedUntil;
+    }
+
+    public boolean isJammed() {
+        return jammedUntil > System.currentTimeMillis();
     }
 
     @Override
     public String toString() {
         return "Protection{" +
                 "id=" + id +
-                ", owner=" + owner +
-                ", type='" + type + '\'' +
+                ", lockId=" + lockId +
                 ", created=" + created +
                 ", accessed=" + accessed +
-                ", access=" + access +
+                ", jammedUntil=" + jammedUntil +
                 '}';
     }
 }

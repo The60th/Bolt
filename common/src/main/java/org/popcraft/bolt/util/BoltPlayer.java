@@ -1,29 +1,19 @@
 package org.popcraft.bolt.util;
 
-import org.popcraft.bolt.source.Source;
-
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 public class BoltPlayer {
     private final UUID uuid;
-    private final Map<Source, String> modifications = new HashMap<>();
-    private final Set<Source> sources = new HashSet<>();
     private final Set<Mode> modes = new HashSet<>();
     private Action action;
     private Action lastAction;
     private boolean interacted;
     private boolean interactionCancelled;
-    private boolean trusting;
-    private boolean trustingSilently;
-    private boolean lockNil;
 
     public BoltPlayer(UUID uuid) {
         this.uuid = uuid;
-        this.sources.add(Source.player(uuid));
     }
 
     public UUID getUuid() {
@@ -82,33 +72,5 @@ public class BoltPlayer {
         if (!this.modes.contains(Mode.PERSIST)) {
             this.action = null;
         }
-    }
-
-    public Map<Source, String> getModifications() {
-        return modifications;
-    }
-
-    public Map<Source, String> consumeModifications() {
-        final Map<Source, String> modificationsCopy = new HashMap<>(modifications);
-        if (!this.modes.contains(Mode.PERSIST)) {
-            modifications.clear();
-        }
-        return modificationsCopy;
-    }
-
-    public boolean isLockNil() {
-        return lockNil;
-    }
-
-    public void setLockNil(boolean lockNil) {
-        this.lockNil = lockNil;
-    }
-
-    public void addPassword(String password) {
-        sources.add(Source.password(password));
-    }
-
-    public Set<Source> sources() {
-        return sources;
     }
 }

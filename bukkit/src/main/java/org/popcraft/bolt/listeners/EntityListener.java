@@ -2,7 +2,6 @@ package org.popcraft.bolt.listeners;
 
 import com.destroystokyo.paper.event.entity.EntityKnockbackByEntityEvent;
 import io.papermc.paper.event.entity.EntityKnockbackEvent;
-import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -58,25 +57,16 @@ import org.bukkit.event.vehicle.VehicleDestroyEvent;
 import org.bukkit.event.vehicle.VehicleEnterEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.popcraft.bolt.BoltPlugin;
-import org.popcraft.bolt.access.Access;
-import org.popcraft.bolt.event.LockEntityEvent;
 import org.popcraft.bolt.lang.Translation;
 import org.popcraft.bolt.protection.BlockProtection;
 import org.popcraft.bolt.protection.EntityProtection;
 import org.popcraft.bolt.protection.Protection;
-import org.popcraft.bolt.source.Source;
-import org.popcraft.bolt.source.SourceResolver;
-import org.popcraft.bolt.source.SourceTypeResolver;
-import org.popcraft.bolt.source.SourceTypes;
 import org.popcraft.bolt.util.BlockLocation;
 import org.popcraft.bolt.util.BoltComponents;
 import org.popcraft.bolt.util.BoltPlayer;
-import org.popcraft.bolt.util.BukkitPlayerResolver;
 import org.popcraft.bolt.util.EnumUtil;
 import org.popcraft.bolt.util.Mode;
 import org.popcraft.bolt.util.Permission;
-import org.popcraft.bolt.util.Profiles;
-import org.popcraft.bolt.util.ProtectableConfig;
 import org.popcraft.bolt.util.Protections;
 import org.popcraft.bolt.util.SchedulerUtil;
 
@@ -90,10 +80,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 
-import static org.popcraft.bolt.util.BoltComponents.translateRaw;
-
 public final class EntityListener extends InteractionListener implements Listener {
-    private static final SourceResolver ENTITY_SOURCE_RESOLVER = new SourceTypeResolver(Source.of(SourceTypes.ENTITY));
     private static final EntityType COPPER_GOLEM = EnumUtil.valueOf(EntityType.class, "COPPER_GOLEM").orElse(null);
     private static final Tag<Material> COPPER_GOLEM_STATUES = Bukkit.getTag(Tag.REGISTRY_BLOCKS, NamespacedKey.minecraft("copper_golem_statues"), Material.class);
     private static final CreatureSpawnEvent.SpawnReason REANIMATE = EnumUtil.valueOf(CreatureSpawnEvent.SpawnReason.class, "REANIMATE").orElse(null);
@@ -128,12 +115,8 @@ public final class EntityListener extends InteractionListener implements Listene
             if (uuid == null) {
                 return;
             }
-            final Player player = plugin.getServer().getPlayer(uuid);
-            if (player != null) {
-                handleEntityPlacementByPlayer(entity, player);
-            }
+            // No auto-protect in the new item-based lock system
         } else if (entity.getType() == COPPER_GOLEM && e.getSpawnReason().equals(REANIMATE)) {
-            // Future: use instanceof CopperGolem or something. Also, CreatureSpawnEvent.SpawnReason.REANIMATE
             // A copper golem statue was reanimated. Transfer the protection over to the golem.
             final Location location = e.getLocation();
             final BlockLocation blockLocation = new BlockLocation(entity.getWorld().getName(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
@@ -141,65 +124,19 @@ public final class EntityListener extends InteractionListener implements Listene
             if (blockProtection == null) {
                 return;
             }
-            final EntityProtection newProtection = plugin.createProtection(entity, blockProtection.getOwner(), blockProtection.getType());
-            newProtection.setAccess(blockProtection.getAccess());
+            final EntityProtection newProtection = plugin.createProtection(entity, blockProtection.getLockId());
             plugin.saveProtection(newProtection);
         }
     }
 
     @EventHandler
     public void onEntityPlace(final EntityPlaceEvent e) {
-        final Player player = e.getPlayer();
-        if (player != null) {
-            handleEntityPlacementByPlayer(e.getEntity(), player);
-        }
+        // No auto-protect in the new item-based lock system
     }
 
     @EventHandler
     public void onHangingPlace(final HangingPlaceEvent e) {
-        final Player player = e.getPlayer();
-        if (player != null) {
-            handleEntityPlacementByPlayer(e.getEntity(), player);
-        }
-    }
-
-    private void handleEntityPlacementByPlayer(final Entity entity, final Player player) {
-        if (plugin.player(player.getUniqueId()).hasMode(Mode.NOLOCK)) {
-            return;
-        }
-        if (!plugin.isProtectable(entity)) {
-            return;
-        }
-        final ProtectableConfig protectableConfig = plugin.getProtectableConfig(entity);
-        if (protectableConfig == null) {
-            return;
-        }
-        if (protectableConfig.autoProtectPermission() && !player.hasPermission("bolt.protection.autoprotect.%s".formatted(entity.getType().name().toLowerCase()))) {
-            return;
-        }
-        final Access access = protectableConfig.defaultAccess();
-        if (access == null) {
-            return;
-        }
-        if (access.restricted() && !player.hasPermission("bolt.type.protection.%s".formatted(access.type()))) {
-            return;
-        }
-        final LockEntityEvent event = new LockEntityEvent(player, entity, true);
-        plugin.getEventBus().post(event);
-        if (event.isCancelled()) {
-            return;
-        }
-        final EntityProtection newProtection = plugin.createProtection(entity, player.getUniqueId(), access.type());
-        plugin.saveProtection(newProtection);
-        if (!plugin.player(player.getUniqueId()).hasMode(Mode.NOSPAM)) {
-            BoltComponents.sendMessage(
-                    player,
-                    Translation.CLICK_LOCKED,
-                    plugin.isUseActionBar(),
-                    Placeholder.component(Translation.Placeholder.PROTECTION_TYPE, Protections.protectionType(newProtection, player)),
-                    Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(entity, player))
-            );
-        }
+        // No auto-protect in the new item-based lock system
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -215,7 +152,6 @@ public final class EntityListener extends InteractionListener implements Listene
                     player,
                     Translation.CLICK_UNLOCKED,
                     plugin.isUseActionBar(),
-                    Placeholder.component(Translation.Placeholder.PROTECTION_TYPE, Protections.protectionType(protection, player)),
                     Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player))
             );
         }
@@ -286,7 +222,6 @@ public final class EntityListener extends InteractionListener implements Listene
                             player,
                             Translation.CLICK_UNLOCKED,
                             plugin.isUseActionBar(),
-                            Placeholder.component(Translation.Placeholder.PROTECTION_TYPE, Protections.protectionType(protection, player)),
                             Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player))
                     );
                 }
@@ -330,42 +265,20 @@ public final class EntityListener extends InteractionListener implements Listene
                 }
             }
             if (shouldSendMessage && hasNotifyPermission) {
-                Profiles.findOrLookupProfileByUniqueId(protection.getOwner()).thenAccept(profile -> {
-                    final boolean noSpam = plugin.player(player.getUniqueId()).hasMode(Mode.NOSPAM);
-                    if (noSpam) {
-                        return;
-                    }
-                    final boolean isYou = player.getUniqueId().equals(protection.getOwner());
-                    final String owner = isYou ? translateRaw(Translation.YOU, player) : profile.name();
-                    if (owner == null) {
-                        SchedulerUtil.schedule(plugin, player, () -> {
-                            if (!plugin.isProtected(entity)) {
-                                return;
-                            }
-                            BoltComponents.sendMessage(
-                                    player,
-                                    Translation.PROTECTION_NOTIFY_GENERIC,
-                                    plugin.isUseActionBar(),
-                                    Placeholder.component(Translation.Placeholder.PROTECTION_TYPE, Protections.protectionType(protection, player)),
-                                    Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player))
-                            );
-                        });
-                    } else if (!isYou || player.hasPermission("bolt.protection.notify.self")) {
-                        SchedulerUtil.schedule(plugin, player, () -> {
-                            if (!plugin.isProtected(entity)) {
-                                return;
-                            }
-                            BoltComponents.sendMessage(
-                                    player,
-                                    Translation.PROTECTION_NOTIFY,
-                                    plugin.isUseActionBar(),
-                                    Placeholder.component(Translation.Placeholder.PROTECTION_TYPE, Protections.protectionType(protection, player)),
-                                    Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player)),
-                                    Placeholder.component(Translation.Placeholder.PLAYER, Component.text(owner))
-                            );
-                        });
-                    }
-                });
+                final boolean noSpam = plugin.player(player.getUniqueId()).hasMode(Mode.NOSPAM);
+                if (!noSpam) {
+                    SchedulerUtil.schedule(plugin, player, () -> {
+                        if (!plugin.isProtected(entity)) {
+                            return;
+                        }
+                        BoltComponents.sendMessage(
+                                player,
+                                Translation.PROTECTION_NOTIFY_GENERIC,
+                                plugin.isUseActionBar(),
+                                Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player))
+                        );
+                    });
+                }
             }
             boltPlayer.setInteracted(shouldCancel);
             SchedulerUtil.schedule(plugin, player, boltPlayer::clearInteraction);
@@ -388,7 +301,6 @@ public final class EntityListener extends InteractionListener implements Listene
                     player,
                     Translation.CLICK_UNLOCKED,
                     plugin.isUseActionBar(),
-                    Placeholder.component(Translation.Placeholder.PROTECTION_TYPE, Protections.protectionType(protection, player)),
                     Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player))
             );
         }
@@ -396,11 +308,14 @@ public final class EntityListener extends InteractionListener implements Listene
 
     @EventHandler
     public void onVehicleEnter(final VehicleEnterEvent e) {
-        final Protection protection = plugin.findProtection(e.getEntered());
+        if (!(e.getEntered() instanceof final Player player)) {
+            return;
+        }
+        final Protection protection = plugin.findProtection(e.getVehicle());
         if (protection == null) {
             return;
         }
-        if (!plugin.canAccess(protection, e.getEntered().getUniqueId(), Permission.MOUNT)) {
+        if (!plugin.canAccess(protection, player, Permission.MOUNT)) {
             e.setCancelled(true);
         }
     }
@@ -532,12 +447,9 @@ public final class EntityListener extends InteractionListener implements Listene
             return;
         }
         if (EntityUnleashEvent.UnleashReason.DISTANCE.equals(e.getReason())) {
-            if (entity.getPassengers().stream().anyMatch(passenger -> plugin.canAccess(protection, passenger.getUniqueId(), Permission.DESTROY))) {
-                plugin.removeProtection(protection);
-            } else {
-                entity.eject();
-                e.setCancelled(true);
-            }
+            // In the new system, passengers can't have keys checked easily, so just block unleash for protected entities
+            entity.eject();
+            e.setCancelled(true);
         } else {
             plugin.removeProtection(protection);
         }
@@ -639,7 +551,8 @@ public final class EntityListener extends InteractionListener implements Listene
         if (protection == null) {
             return;
         }
-        if (!plugin.canAccess(protection, ENTITY_SOURCE_RESOLVER, Permission.ENTITY_INTERACT)) {
+        // Non-player entity interacting with a protected block: block it
+        if (!plugin.canAccessNonPlayer(protection)) {
             e.setCancelled(true);
         }
     }
@@ -653,7 +566,8 @@ public final class EntityListener extends InteractionListener implements Listene
         if (protection == null) {
             return;
         }
-        if (!plugin.canAccess(protection, ENTITY_SOURCE_RESOLVER, Permission.ENTITY_BREAK_DOOR)) {
+        // Non-player entity breaking a protected door: block it
+        if (!plugin.canAccessNonPlayer(protection)) {
             e.setCancelled(true);
         }
     }
@@ -756,9 +670,8 @@ public final class EntityListener extends InteractionListener implements Listene
         final EntityProtection entityProtection = plugin.loadProtection(e.getEntity());
         // Future: can just instanceof CopperGolem or something. also use Tag.COPPER_GOLEM_STATUES
         if (entityProtection != null && e.getEntity().getType() == COPPER_GOLEM && COPPER_GOLEM_STATUES != null && COPPER_GOLEM_STATUES.isTagged(e.getTo())) {
-            final BlockProtection newProtection = plugin.createProtection(e.getBlock(), entityProtection.getOwner(), entityProtection.getType());
+            final BlockProtection newProtection = plugin.createProtection(e.getBlock(), entityProtection.getLockId());
             newProtection.setBlock(e.getTo().name());
-            newProtection.setAccess(entityProtection.getAccess());
             plugin.saveProtection(newProtection);
             plugin.removeProtection(entityProtection);
         }
@@ -770,20 +683,14 @@ public final class EntityListener extends InteractionListener implements Listene
             return;
         }
         final Protection entityProtection = plugin.findProtection(entity);
-        final SourceResolver resolver =
-                entityProtection != null ? new BukkitPlayerResolver(this.plugin.getBolt(), entityProtection.getOwner()) : ENTITY_SOURCE_RESOLVER;
-        // Future: replace with entity instanceof CopperGolem or something
-        if (entity instanceof LivingEntity livingEntity && entity.getType() == COPPER_GOLEM) {
-            // For copper golems, we know if they're depositing or withdrawing based on if they're holding something.
-            final boolean isPickingUpItem = Objects.requireNonNull(livingEntity.getEquipment()).getItemInMainHand().getAmount() == 0;
-            final String permission = isPickingUpItem ? Permission.WITHDRAW : Permission.DEPOSIT;
-            if (!plugin.canAccess(blockProtection, resolver, permission)) {
+        if (entityProtection != null) {
+            // If the entity has a protection, check if lockIds match
+            if (!plugin.canAccessHopperTransfer(entityProtection, blockProtection)) {
                 setAllowed.accept(false);
             }
         } else {
-            // A plugin has added the item transporting goal to some other entity. Apparently according to Paper this is
-            // valid, but Bolt can't really know what the entity is doing, so just assume both withdrawing and depositing.
-            if (!plugin.canAccess(blockProtection, resolver, Permission.WITHDRAW, Permission.DEPOSIT)) {
+            // Non-player entity without a protection trying to access a protected block
+            if (!plugin.canAccessNonPlayer(blockProtection)) {
                 setAllowed.accept(false);
             }
         }

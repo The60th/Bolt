@@ -3,7 +3,6 @@ package org.popcraft.bolt.command.impl;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
 import org.popcraft.bolt.BoltPlugin;
 import org.popcraft.bolt.command.Arguments;
 import org.popcraft.bolt.command.BoltCommand;
@@ -11,12 +10,11 @@ import org.popcraft.bolt.lang.Translation;
 import org.popcraft.bolt.protection.Protection;
 import org.popcraft.bolt.util.BoltComponents;
 import org.popcraft.bolt.util.Pagination;
-import org.popcraft.bolt.util.Profiles;
-import org.popcraft.bolt.util.SchedulerUtil;
 
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 
 public class AdminFindCommand extends BoltCommand {
 
@@ -30,33 +28,31 @@ public class AdminFindCommand extends BoltCommand {
             shortHelp(sender, arguments);
             return;
         }
-        final String player = arguments.next();
-        Profiles.findOrLookupProfileByName(player).thenAccept(playerProfile -> SchedulerUtil.schedule(plugin, sender, () -> {
-            if (!playerProfile.complete()) {
-                BoltComponents.sendMessage(
-                        sender,
-                        Translation.PLAYER_NOT_FOUND,
-                        Placeholder.component(Translation.Placeholder.PLAYER, Component.text(player))
-                );
-                return;
-            }
-            final List<Protection> protectionsFromPlayer = plugin.loadProtections().stream()
-                    .filter(protection -> playerProfile.uuid().equals(protection.getOwner()))
-                    .sorted(Comparator.comparingLong(Protection::getCreated).reversed())
-                    .toList();
-            Pagination.runPage(plugin, sender, protectionsFromPlayer, 0);
-        }));
+        final String lockIdString = arguments.next();
+        final UUID lockId;
+        try {
+            lockId = UUID.fromString(lockIdString);
+        } catch (IllegalArgumentException e) {
+            BoltComponents.sendMessage(
+                    sender,
+                    Translation.GENERIC_NOT_FOUND,
+                    Placeholder.component(Translation.Placeholder.LOCK_ID, Component.text(lockIdString))
+            );
+            return;
+        }
+        final List<Protection> protectionsWithLockId = plugin.loadProtections().stream()
+                .filter(protection -> lockId.equals(protection.getLockId()))
+                .sorted(Comparator.comparingLong(Protection::getCreated).reversed())
+                .toList();
+        if (protectionsWithLockId.isEmpty()) {
+            BoltComponents.sendMessage(sender, Translation.FIND_NONE);
+            return;
+        }
+        Pagination.runPage(plugin, sender, protectionsWithLockId, 0);
     }
 
     @Override
     public List<String> suggestions(CommandSender sender, Arguments arguments) {
-        if (arguments.remaining() == 0) {
-            return Collections.emptyList();
-        }
-        arguments.next();
-        if (arguments.remaining() == 0) {
-            return plugin.getServer().getOnlinePlayers().stream().map(Player::getName).toList();
-        }
         return Collections.emptyList();
     }
 

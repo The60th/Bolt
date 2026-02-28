@@ -15,6 +15,9 @@ commands:
   unlock:
     description: Shortcut unlock command for convenience
     permission: bolt.command.unlock
+  lockpick:
+    description: Shortcut lockpick command for convenience
+    permission: bolt.command.lockpick
 permissions:
   bolt.mod:
     default: op
@@ -46,15 +49,7 @@ permissions:
     default: op
   bolt.command.admin.storage:
     default: op
-  bolt.command.admin.transfer:
-    default: op
-  bolt.command.admin.trust:
-    default: op
   bolt.command.callback:
-    default: true
-  bolt.command.edit:
-    default: true
-  bolt.command.group:
     default: true
   bolt.command.help:
     default: true
@@ -64,25 +59,15 @@ permissions:
     default: op
   bolt.command.lock:
     default: true
+  bolt.command.lockpick:
+    default: true
   bolt.command.mode:
-    default: true
-  bolt.command.modify:
-    default: true
-  bolt.command.password:
-    default: true
-  bolt.command.transfer:
-    default: true
-  bolt.command.trust:
     default: true
   bolt.command.unlock:
     default: true
   bolt.protection.notify:
     default: op
   bolt.protection.notify.self:
-    default: false
-  bolt.type.source.door:
-    default: false
-  bolt.type.access.autoclose:
     default: false
   bolt.permission.interact:
     default: false
@@ -92,11 +77,7 @@ permissions:
     default: false
   bolt.permission.withdraw:
     default: false
-  bolt.permission.modify:
-    default: false
   bolt.permission.mount:
-    default: false
-  bolt.permission.edit:
     default: false
   bolt.permission.destroy:
     default: false

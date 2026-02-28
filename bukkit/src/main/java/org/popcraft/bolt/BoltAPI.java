@@ -9,9 +9,6 @@ import org.popcraft.bolt.event.Event;
 import org.popcraft.bolt.protection.BlockProtection;
 import org.popcraft.bolt.protection.EntityProtection;
 import org.popcraft.bolt.protection.Protection;
-import org.popcraft.bolt.source.PlayerSourceResolver;
-import org.popcraft.bolt.source.SourceResolver;
-import org.popcraft.bolt.source.SourceTransformer;
 
 import java.util.Collection;
 import java.util.UUID;
@@ -74,11 +71,10 @@ public interface BoltAPI {
      * {@link #isProtectable(Block)} to check that.
      *
      * @param block block to be protected
-     * @param owner owner of the protection. May be {@link org.popcraft.bolt.util.Profiles#NIL_UUID NIL_UUID} for a protection not owned by anyone in particular
-     * @param type protection type. See the {@code protections} section in the config
+     * @param lockId UUID of the lock. Players with a matching key item can access this protection.
      * @return protection object representing the newly created protection
      */
-    BlockProtection createProtection(final Block block, final UUID owner, final String type);
+    BlockProtection createProtection(final Block block, final UUID lockId);
 
     /**
      * Creates a new entity protection. The created protection is NOT saved to storage, you must call {@link #saveProtection(Protection)}
@@ -86,11 +82,10 @@ public interface BoltAPI {
      * {@link #isProtectable(Entity)} to check that.
      *
      * @param entity entity to be protected
-     * @param owner owner of the protection. May be {@link org.popcraft.bolt.util.Profiles#NIL_UUID NIL_UUID} for a protection not owned by anyone in particular
-     * @param type protection type. See the {@code protections} section in the config
+     * @param lockId UUID of the lock. Players with a matching key item can access this protection.
      * @return protection object representing the newly created protection
      */
-    EntityProtection createProtection(final Entity entity, final UUID owner, final String type);
+    EntityProtection createProtection(final Entity entity, final UUID lockId);
 
     /**
      * Loads ALL block and entity protections in all worlds.
@@ -124,7 +119,7 @@ public interface BoltAPI {
     /**
      * Loads the protection associated with the given block or another protected block or entity that this block supports, like {@link #isProtected(Block)}.
      * @return protection object, or {@code null} if no protection exists for this block.
-     * @see #loadProtection(Block) 
+     * @see #loadProtection(Block)
      */
     Protection findProtection(final Block block);
 
@@ -161,36 +156,15 @@ public interface BoltAPI {
     boolean canAccess(final Protection protection, final Player player, final String... permissions);
 
     /**
-     * Checks whether the player with the given UUID can access the given protection with the given permissions.
-     * See {@link org.popcraft.bolt.util.Permission Permission} for permissions that exist.
-     */
-    boolean canAccess(final Protection protection, final UUID uuid, final String... permissions);
-
-    /**
-     * Checks whether the given source resolver can access the given protection with the given permissions.
-     * See {@link org.popcraft.bolt.util.Permission Permission} for permissions that exist.
-     */
-    boolean canAccess(final Protection protection, final SourceResolver sourceResolver, final String... permissions);
-
-    /**
-     * Registers a source resolver for players. This source resolver is checked every time a player tries to access a
-     * protection and is passed the source and the player's UUID for each source that could access the protection.
+     * Checks whether the given protection is currently jammed from a failed lockpick attempt.
      *
-     * @see org.popcraft.bolt.source.Source Source
-     * @see SourceResolver
+     * @param protection the protection to check
+     * @return true if the protection is jammed
      */
-    void registerPlayerSourceResolver(final PlayerSourceResolver playerSourceResolver);
+    boolean isJammed(final Protection protection);
 
     /**
      * Registers an event listener for the given event class.
      */
     <T extends Event> void registerListener(final Class<T> clazz, final Consumer<? super T> listener);
-
-    /**
-     * Registers a source transformer for the provided source type. This allows for custom source types with ergonomic
-     * command usage.
-     *
-     * @see SourceTransformer
-     */
-    void registerSourceTransformer(final String sourceType, final SourceTransformer sourceTransformer);
 }

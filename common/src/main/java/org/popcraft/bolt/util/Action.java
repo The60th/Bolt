@@ -47,8 +47,7 @@ public class Action {
         LOCK,
         UNLOCK,
         INFO,
-        EDIT,
         DEBUG,
-        TRANSFER,
+        LOCKPICK,
     }
 }

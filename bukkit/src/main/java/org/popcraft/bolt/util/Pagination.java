@@ -11,7 +11,6 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.popcraft.bolt.BoltPlugin;
-import org.popcraft.bolt.data.Profile;
 import org.popcraft.bolt.lang.Translation;
 import org.popcraft.bolt.lang.Translator;
 import org.popcraft.bolt.protection.BlockProtection;
@@ -21,7 +20,6 @@ import org.popcraft.bolt.protection.Protection;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
 
@@ -61,16 +59,14 @@ public class Pagination {
                 }
             };
 
-            final Profile profile = Profiles.findProfileByUniqueId(protection.getOwner());
-            final Component name = Optional.ofNullable(profile.name()).<Component>map(Component::text).orElse(resolveTranslation(Translation.UNKNOWN, sender));
+            final Component lockIdComponent = Component.text(protection.getLockId().toString());
 
             if (location == null) {
                 BoltComponents.sendMessage(
                         sender,
                         Translation.FIND_RESULT_UNKNOWN,
-                        Placeholder.component(Translation.Placeholder.PROTECTION_TYPE, Protections.protectionType(protection, sender)),
                         Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, sender)),
-                        Placeholder.component(Translation.Placeholder.PLAYER, name),
+                        Placeholder.component(Translation.Placeholder.LOCK_ID, lockIdComponent),
                         Placeholder.component(Translation.Placeholder.TIME, Time.relativeTimestamp(protection.getCreated(), sender, 1))
                 );
             } else {
@@ -91,9 +87,8 @@ public class Pagination {
                 BoltComponents.sendMessage(
                         sender,
                         Translation.FIND_RESULT,
-                        Placeholder.component(Translation.Placeholder.PROTECTION_TYPE, Protections.protectionType(protection, sender)),
                         Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, sender)),
-                        Placeholder.component(Translation.Placeholder.PLAYER, name),
+                        Placeholder.component(Translation.Placeholder.LOCK_ID, lockIdComponent),
                         Placeholder.component(Translation.Placeholder.TIME, Time.relativeTimestamp(protection.getCreated(), sender, 1)),
                         Placeholder.component(Translation.Placeholder.WORLD, Component.text(Objects.requireNonNull(location.getWorld()).getName())),
                         Placeholder.component(Translation.Placeholder.X, Component.text(location.getBlockX())),

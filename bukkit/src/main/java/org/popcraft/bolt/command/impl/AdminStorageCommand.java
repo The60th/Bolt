@@ -84,8 +84,6 @@ public class AdminStorageCommand extends BoltCommand {
         return CompletableFuture.runAsync(() -> {
             from.loadBlockProtections().join().forEach(to::saveBlockProtection);
             from.loadEntityProtections().join().forEach(to::saveEntityProtection);
-            from.loadGroups().join().forEach(to::saveGroup);
-            from.loadAccessLists().join().forEach(to::saveAccessList);
             to.flush().join();
         });
     }

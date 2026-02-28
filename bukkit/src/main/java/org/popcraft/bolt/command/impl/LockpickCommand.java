@@ -8,26 +8,31 @@ import org.popcraft.bolt.BoltPlugin;
 import org.popcraft.bolt.command.Arguments;
 import org.popcraft.bolt.command.BoltCommand;
 import org.popcraft.bolt.lang.Translation;
+import org.popcraft.bolt.util.Action;
 import org.popcraft.bolt.util.BoltComponents;
-import org.popcraft.bolt.util.BoltPlayer;
 
 import java.util.Collections;
 import java.util.List;
 
-public class PasswordCommand extends BoltCommand {
-    public PasswordCommand(BoltPlugin plugin) {
+public class LockpickCommand extends BoltCommand {
+    public LockpickCommand(BoltPlugin plugin) {
         super(plugin);
     }
 
+    @Override
     public void execute(CommandSender sender, Arguments arguments) {
         if (sender instanceof final Player player) {
-            final BoltPlayer boltPlayer = plugin.player(player);
-            if (arguments.remaining() > 0) {
-                boltPlayer.addPassword(arguments.next());
-                BoltComponents.sendMessage(player, Translation.ENTER_PASSWORD);
-            } else {
-                BoltComponents.sendMessage(player, Translation.ENTER_PASSWORD_NONE);
+            if (!plugin.isLockpickingEnabled()) {
+                BoltComponents.sendMessage(sender, Translation.COMMAND_NO_PERMISSION);
+                return;
             }
+            plugin.player(player).setAction(new Action(Action.Type.LOCKPICK, "bolt.command.lockpick"));
+            BoltComponents.sendMessage(
+                    player,
+                    Translation.CLICK_ACTION,
+                    plugin.isUseActionBar(),
+                    Placeholder.component(Translation.Placeholder.ACTION, BoltComponents.resolveTranslation(Translation.LOCKPICK, player))
+            );
         } else {
             BoltComponents.sendMessage(sender, Translation.COMMAND_PLAYER_ONLY);
         }
@@ -42,13 +47,13 @@ public class PasswordCommand extends BoltCommand {
     public void shortHelp(CommandSender sender, Arguments arguments) {
         BoltComponents.sendMessage(
                 sender,
-                Translation.HELP_COMMAND_SHORT_PASSWORD,
-                Placeholder.component(Translation.Placeholder.COMMAND, Component.text("/bolt password"))
+                Translation.HELP_COMMAND_SHORT_LOCKPICK,
+                Placeholder.component(Translation.Placeholder.COMMAND, Component.text("/bolt lockpick"))
         );
     }
 
     @Override
     public void longHelp(CommandSender sender, Arguments arguments) {
-        BoltComponents.sendMessage(sender, Translation.HELP_COMMAND_LONG_PASSWORD);
+        BoltComponents.sendMessage(sender, Translation.HELP_COMMAND_LONG_LOCKPICK);
     }
 }

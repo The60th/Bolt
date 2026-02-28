@@ -1,13 +1,12 @@
 package org.popcraft.bolt.protection;
 
-import java.util.Map;
 import java.util.UUID;
 
 public final class EntityProtection extends Protection {
     private String entity;
 
-    public EntityProtection(UUID id, UUID owner, String type, long created, long accessed, Map<String, String> access, String entity) {
-        super(id, owner, type, created, accessed, access);
+    public EntityProtection(UUID id, UUID lockId, long created, long accessed, long jammedUntil, String entity) {
+        super(id, lockId, created, accessed, jammedUntil);
         this.entity = entity;
     }
 
@@ -23,11 +22,10 @@ public final class EntityProtection extends Protection {
     public String toString() {
         return "EntityProtection{" +
                 "id=" + id +
-                ", owner=" + owner +
-                ", type='" + type + '\'' +
+                ", lockId=" + lockId +
                 ", created=" + created +
                 ", accessed=" + accessed +
-                ", access=" + access +
+                ", jammedUntil=" + jammedUntil +
                 ", entity='" + entity + '\'' +
                 '}';
     }

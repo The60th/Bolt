@@ -21,10 +21,6 @@ import org.bukkit.event.Event;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.popcraft.bolt.BoltPlugin;
 import org.popcraft.bolt.protection.Protection;
-import org.popcraft.bolt.source.Source;
-import org.popcraft.bolt.source.SourceResolver;
-import org.popcraft.bolt.source.SourceTypeResolver;
-import org.popcraft.bolt.source.SourceTypes;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -34,7 +30,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 public final class Doors {
-    private static final SourceResolver DOOR_SOURCE_RESOLVER = new SourceTypeResolver(Source.of(SourceTypes.DOOR));
     private static final Map<BlockLocation, Integer> CLOSING = new ConcurrentHashMap<>();
     private static final Set<PlayerInteractEvent> SELF_FIRED_EVENTS = ConcurrentHashMap.newKeySet();
     // Future: Replace with Tag.MOB_INTERACTABLE_DOORS
@@ -78,7 +73,7 @@ public final class Doors {
             doors.add(block);
             doors.forEach(door -> {
                 final Protection protection = plugin.findProtection(door);
-                if (protection == null || (!plugin.canAccess(protection, player.getUniqueId(), Permission.AUTO_CLOSE) && !plugin.canAccess(protection, DOOR_SOURCE_RESOLVER, Permission.AUTO_CLOSE))) {
+                if (protection == null || !plugin.canAccess(protection, player, Permission.AUTO_CLOSE)) {
                     return;
                 }
                 final BlockLocation doorBlockLocation = new BlockLocation(door.getWorld().getName(), door.getX(), door.getY(), door.getZ());

@@ -1,17 +1,12 @@
 package org.popcraft.bolt.data;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import org.popcraft.bolt.access.AccessList;
 import org.popcraft.bolt.data.sql.Statements;
 import org.popcraft.bolt.protection.BlockProtection;
 import org.popcraft.bolt.protection.EntityProtection;
 import org.popcraft.bolt.util.BlockLocation;
-import org.popcraft.bolt.util.Group;
 import org.popcraft.bolt.util.Metrics;
 
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -26,7 +21,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
@@ -35,22 +29,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.LogManager;
 
 public class SQLStore implements Store {
-    private static final Gson GSON = new Gson();
-    private static final TypeToken<HashMap<String, String>> ACCESS_LIST_TYPE_TOKEN = new TypeToken<>() {
-    };
-    private static final TypeToken<List<String>> PLAYER_LIST_TYPE_TOKEN = new TypeToken<>() {
-    };
-    private static final Type ACCESS_LIST_TYPE = ACCESS_LIST_TYPE_TOKEN.getType();
-    private static final Type PLAYER_LIST_TYPE = PLAYER_LIST_TYPE_TOKEN.getType();
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
     private final Map<UUID, BlockProtection> saveBlocks = new HashMap<>();
     private final Map<UUID, BlockProtection> removeBlocks = new HashMap<>();
     private final Map<UUID, EntityProtection> saveEntities = new HashMap<>();
     private final Map<UUID, EntityProtection> removeEntities = new HashMap<>();
-    private final Map<String, Group> saveGroups = new HashMap<>();
-    private final Map<String, Group> removeGroups = new HashMap<>();
-    private final Map<UUID, AccessList> saveAccessLists = new HashMap<>();
-    private final Map<UUID, AccessList> removeAccessLists = new HashMap<>();
     private final Configuration configuration;
     private final String connectionUrl;
     private Connection connection;
@@ -70,25 +53,19 @@ public class SQLStore implements Store {
                 "jdbc:sqlite:%s".formatted(configuration.path());
         reconnect();
         try (final PreparedStatement createBlocksTable = connection.prepareStatement(Statements.CREATE_TABLE_BLOCKS.get(configuration.type()).formatted(configuration.prefix()));
-             final PreparedStatement createEntitiesTable = connection.prepareStatement(Statements.CREATE_TABLE_ENTITIES.get(configuration.type()).formatted(configuration.prefix()));
-             final PreparedStatement createGroupsTable = connection.prepareStatement(Statements.CREATE_TABLE_GROUPS.get(configuration.type()).formatted(configuration.prefix()));
-             final PreparedStatement createAccessTable = connection.prepareStatement(Statements.CREATE_TABLE_ACCESS.get(configuration.type()).formatted(configuration.prefix()))) {
+             final PreparedStatement createEntitiesTable = connection.prepareStatement(Statements.CREATE_TABLE_ENTITIES.get(configuration.type()).formatted(configuration.prefix()))) {
             createBlocksTable.execute();
             createEntitiesTable.execute();
-            createGroupsTable.execute();
-            createAccessTable.execute();
         } catch (SQLException e) {
             e.printStackTrace();
         }
         if (!usingMySQL) {
-            try (final PreparedStatement createBlocksOwnerIndex = connection.prepareStatement(Statements.CREATE_INDEX_BLOCK_OWNER.get(configuration.type()).formatted(configuration.prefix()));
+            try (final PreparedStatement createBlocksLockIdIndex = connection.prepareStatement(Statements.CREATE_INDEX_BLOCK_LOCK_ID.get(configuration.type()).formatted(configuration.prefix()));
                  final PreparedStatement createBlocksLocationIndex = connection.prepareStatement(Statements.CREATE_INDEX_BLOCK_LOCATION.get(configuration.type()).formatted(configuration.prefix()));
-                 final PreparedStatement createEntitiesOwnerIndex = connection.prepareStatement(Statements.CREATE_INDEX_ENTITY_OWNER.get(configuration.type()).formatted(configuration.prefix()));
-                 final PreparedStatement createGroupsOwnerIndex = connection.prepareStatement(Statements.CREATE_INDEX_GROUP_OWNER.get(configuration.type()).formatted(configuration.prefix()))) {
-                createBlocksOwnerIndex.execute();
+                 final PreparedStatement createEntitiesLockIdIndex = connection.prepareStatement(Statements.CREATE_INDEX_ENTITY_LOCK_ID.get(configuration.type()).formatted(configuration.prefix()))) {
+                createBlocksLockIdIndex.execute();
                 createBlocksLocationIndex.execute();
-                createEntitiesOwnerIndex.execute();
-                createGroupsOwnerIndex.execute();
+                createEntitiesLockIdIndex.execute();
             } catch (SQLException e) {
                 e.printStackTrace();
             }
@@ -172,18 +149,16 @@ public class SQLStore implements Store {
 
     private BlockProtection blockProtectionFromResultSet(final ResultSet resultSet) throws SQLException {
         final String id = resultSet.getString(1);
-        final String owner = resultSet.getString(2);
-        final String type = resultSet.getString(3);
-        final long created = resultSet.getLong(4);
-        final long accessed = resultSet.getLong(5);
-        final String accessText = resultSet.getString(6);
-        final Map<String, String> access = Objects.requireNonNullElse(GSON.fromJson(accessText, ACCESS_LIST_TYPE_TOKEN), new HashMap<>());
-        final String world = resultSet.getString(7);
-        final int x = resultSet.getInt(8);
-        final int y = resultSet.getInt(9);
-        final int z = resultSet.getInt(10);
-        final String block = resultSet.getString(11);
-        return new BlockProtection(UUID.fromString(id), UUID.fromString(owner), type, created, accessed, access, world, x, y, z, block);
+        final String lockId = resultSet.getString(2);
+        final long created = resultSet.getLong(3);
+        final long accessed = resultSet.getLong(4);
+        final long jammedUntil = resultSet.getLong(5);
+        final String world = resultSet.getString(6);
+        final int x = resultSet.getInt(7);
+        final int y = resultSet.getInt(8);
+        final int z = resultSet.getInt(9);
+        final String block = resultSet.getString(10);
+        return new BlockProtection(UUID.fromString(id), UUID.fromString(lockId), created, accessed, jammedUntil, world, x, y, z, block);
     }
 
     @Override
@@ -194,16 +169,15 @@ public class SQLStore implements Store {
     private void saveBlockProtectionNow(BlockProtection protection) {
         try (final PreparedStatement replaceBlock = connection.prepareStatement(Statements.REPLACE_BLOCK.get(configuration.type()).formatted(configuration.prefix()))) {
             replaceBlock.setString(1, protection.getId().toString());
-            replaceBlock.setString(2, protection.getOwner().toString());
-            replaceBlock.setString(3, protection.getType());
-            replaceBlock.setLong(4, protection.getCreated());
-            replaceBlock.setLong(5, protection.getAccessed());
-            replaceBlock.setString(6, GSON.toJson(protection.getAccess(), ACCESS_LIST_TYPE));
-            replaceBlock.setString(7, protection.getWorld());
-            replaceBlock.setInt(8, protection.getX());
-            replaceBlock.setInt(9, protection.getY());
-            replaceBlock.setInt(10, protection.getZ());
-            replaceBlock.setString(11, protection.getBlock());
+            replaceBlock.setString(2, protection.getLockId().toString());
+            replaceBlock.setLong(3, protection.getCreated());
+            replaceBlock.setLong(4, protection.getAccessed());
+            replaceBlock.setLong(5, protection.getJammedUntil());
+            replaceBlock.setString(6, protection.getWorld());
+            replaceBlock.setInt(7, protection.getX());
+            replaceBlock.setInt(8, protection.getY());
+            replaceBlock.setInt(9, protection.getZ());
+            replaceBlock.setString(10, protection.getBlock());
             replaceBlock.execute();
         } catch (SQLException e) {
             e.printStackTrace();
@@ -274,14 +248,12 @@ public class SQLStore implements Store {
 
     private EntityProtection entityProtectionFromResultSet(final ResultSet resultSet) throws SQLException {
         final String id = resultSet.getString(1);
-        final String owner = resultSet.getString(2);
-        final String type = resultSet.getString(3);
-        final long created = resultSet.getLong(4);
-        final long accessed = resultSet.getLong(5);
-        final String accessText = resultSet.getString(6);
-        final Map<String, String> access = Objects.requireNonNullElse(GSON.fromJson(accessText, ACCESS_LIST_TYPE_TOKEN), new HashMap<>());
-        final String entity = resultSet.getString(7);
-        return new EntityProtection(UUID.fromString(id), UUID.fromString(owner), type, created, accessed, access, entity);
+        final String lockId = resultSet.getString(2);
+        final long created = resultSet.getLong(3);
+        final long accessed = resultSet.getLong(4);
+        final long jammedUntil = resultSet.getLong(5);
+        final String entity = resultSet.getString(6);
+        return new EntityProtection(UUID.fromString(id), UUID.fromString(lockId), created, accessed, jammedUntil, entity);
     }
 
     @Override
@@ -292,12 +264,11 @@ public class SQLStore implements Store {
     private void saveEntityProtectionNow(EntityProtection protection) {
         try (final PreparedStatement replaceEntity = connection.prepareStatement(Statements.REPLACE_ENTITY.get(configuration.type()).formatted(configuration.prefix()))) {
             replaceEntity.setString(1, protection.getId().toString());
-            replaceEntity.setString(2, protection.getOwner().toString());
-            replaceEntity.setString(3, protection.getType());
-            replaceEntity.setLong(4, protection.getCreated());
-            replaceEntity.setLong(5, protection.getAccessed());
-            replaceEntity.setString(6, GSON.toJson(protection.getAccess(), ACCESS_LIST_TYPE));
-            replaceEntity.setString(7, protection.getEntity());
+            replaceEntity.setString(2, protection.getLockId().toString());
+            replaceEntity.setLong(3, protection.getCreated());
+            replaceEntity.setLong(4, protection.getAccessed());
+            replaceEntity.setLong(5, protection.getJammedUntil());
+            replaceEntity.setString(6, protection.getEntity());
             replaceEntity.execute();
         } catch (SQLException e) {
             e.printStackTrace();
@@ -316,156 +287,6 @@ public class SQLStore implements Store {
         try (final PreparedStatement deleteEntity = connection.prepareStatement(Statements.DELETE_ENTITY.get(configuration.type()).formatted(configuration.prefix()))) {
             deleteEntity.setString(1, protection.getId().toString());
             deleteEntity.execute();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    @Override
-    public CompletableFuture<Group> loadGroup(String group) {
-        final CompletableFuture<Group> future = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-            try (final PreparedStatement selectGroup = connection.prepareStatement(Statements.SELECT_GROUP_BY_NAME.get(configuration.type()).formatted(configuration.prefix()))) {
-                selectGroup.setString(1, group);
-                final ResultSet groupResultSet = selectGroup.executeQuery();
-                if (groupResultSet.next()) {
-                    future.complete(groupFromResultSet(groupResultSet));
-                }
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-            future.complete(null);
-        }, executor);
-        return future;
-    }
-
-    @Override
-    public CompletableFuture<Collection<Group>> loadGroups() {
-        final CompletableFuture<Collection<Group>> future = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-            try (final PreparedStatement selectGroups = connection.prepareStatement(Statements.SELECT_ALL_GROUPS.get(configuration.type()).formatted(configuration.prefix()))) {
-                final ResultSet groupResultSet = selectGroups.executeQuery();
-                final List<Group> groups = new ArrayList<>();
-                while (groupResultSet.next()) {
-                    groups.add(groupFromResultSet(groupResultSet));
-                }
-                future.complete(groups);
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-            future.complete(Collections.emptyList());
-        }, executor);
-        return future;
-    }
-
-    private Group groupFromResultSet(final ResultSet resultSet) throws SQLException {
-        final String name = resultSet.getString(1);
-        final String owner = resultSet.getString(2);
-        final String membersText = resultSet.getString(3);
-        final List<String> membersRaw = Objects.requireNonNullElse(GSON.fromJson(membersText, PLAYER_LIST_TYPE_TOKEN), new ArrayList<>());
-        final List<UUID> members = new ArrayList<>();
-        membersRaw.forEach(memberRaw -> members.add(UUID.fromString(memberRaw)));
-        return new Group(name, UUID.fromString(owner), members);
-    }
-
-    @Override
-    public void saveGroup(Group group) {
-        CompletableFuture.runAsync(() -> saveGroups.put(group.getName(), group), executor);
-    }
-
-    private void saveGroupNow(Group group) {
-        try (final PreparedStatement replaceGroup = connection.prepareStatement(Statements.REPLACE_GROUP.get(configuration.type()).formatted(configuration.prefix()))) {
-            replaceGroup.setString(1, group.getName());
-            replaceGroup.setString(2, group.getOwner().toString());
-            replaceGroup.setString(3, GSON.toJson(group.getMembers(), PLAYER_LIST_TYPE));
-            replaceGroup.execute();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    @Override
-    public void removeGroup(Group group) {
-        CompletableFuture.runAsync(() -> removeGroups.put(group.getName(), group), executor);
-    }
-
-    private void removeGroupNow(Group group) {
-        try (final PreparedStatement deleteGroup = connection.prepareStatement(Statements.DELETE_GROUP.get(configuration.type()).formatted(configuration.prefix()))) {
-            deleteGroup.setString(1, group.getName());
-            deleteGroup.execute();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    @Override
-    public CompletableFuture<AccessList> loadAccessList(UUID owner) {
-        final CompletableFuture<AccessList> future = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-            try (final PreparedStatement selectAccessList = connection.prepareStatement(Statements.SELECT_ACCESS_LIST_BY_UUID.get(configuration.type()).formatted(configuration.prefix()))) {
-                selectAccessList.setString(1, owner.toString());
-                final ResultSet accessListResultSet = selectAccessList.executeQuery();
-                if (accessListResultSet.next()) {
-                    future.complete(accessListFromResultSet(accessListResultSet));
-                }
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-            future.complete(null);
-        }, executor);
-        return future;
-    }
-
-    @Override
-    public CompletableFuture<Collection<AccessList>> loadAccessLists() {
-        final CompletableFuture<Collection<AccessList>> future = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-            try (final PreparedStatement selectAccessLists = connection.prepareStatement(Statements.SELECT_ALL_ACCESS_LISTS.get(configuration.type()).formatted(configuration.prefix()))) {
-                final ResultSet accessListsResultSet = selectAccessLists.executeQuery();
-                final List<AccessList> accessLists = new ArrayList<>();
-                while (accessListsResultSet.next()) {
-                    accessLists.add(accessListFromResultSet(accessListsResultSet));
-                }
-                future.complete(accessLists);
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-            future.complete(Collections.emptyList());
-        }, executor);
-        return future;
-    }
-
-    private AccessList accessListFromResultSet(final ResultSet resultSet) throws SQLException {
-        final String owner = resultSet.getString(1);
-        final String accessListText = resultSet.getString(2);
-        final Map<String, String> access = Objects.requireNonNullElse(GSON.fromJson(accessListText, ACCESS_LIST_TYPE_TOKEN), new HashMap<>());
-        return new AccessList(UUID.fromString(owner), access);
-    }
-
-    @Override
-    public void saveAccessList(AccessList accessList) {
-        CompletableFuture.runAsync(() -> saveAccessLists.put(accessList.getOwner(), accessList), executor);
-    }
-
-    private void saveAccessListNow(AccessList accessList) {
-        try (final PreparedStatement replaceAccessList = connection.prepareStatement(Statements.REPLACE_ACCESS_LIST.get(configuration.type()).formatted(configuration.prefix()))) {
-            replaceAccessList.setString(1, accessList.getOwner().toString());
-            replaceAccessList.setString(2, GSON.toJson(accessList.getAccess(), ACCESS_LIST_TYPE));
-            replaceAccessList.execute();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    @Override
-    public void removeAccessList(AccessList accessList) {
-        CompletableFuture.runAsync(() -> removeAccessLists.put(accessList.getOwner(), accessList), executor);
-    }
-
-    private void removeAccessListNow(AccessList accessList) {
-        try (final PreparedStatement deleteAccessList = connection.prepareStatement(Statements.DELETE_ACCESS_LIST.get(configuration.type()).formatted(configuration.prefix()))) {
-            deleteAccessList.setString(1, accessList.getOwner().toString());
-            deleteAccessList.execute();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -514,42 +335,6 @@ public class SQLStore implements Store {
                     while (removeEntitiesIterator.hasNext()) {
                         removeEntityProtectionNow(removeEntitiesIterator.next());
                         removeEntitiesIterator.remove();
-                    }
-                    connection.setAutoCommit(true);
-                }
-                if (!saveGroups.isEmpty()) {
-                    connection.setAutoCommit(false);
-                    final Iterator<Group> saveGroupsIterator = saveGroups.values().iterator();
-                    while (saveGroupsIterator.hasNext()) {
-                        saveGroupNow(saveGroupsIterator.next());
-                        saveGroupsIterator.remove();
-                    }
-                    connection.setAutoCommit(true);
-                }
-                if (!removeGroups.isEmpty()) {
-                    connection.setAutoCommit(false);
-                    final Iterator<Group> removeGroupsIterator = removeGroups.values().iterator();
-                    while (removeGroupsIterator.hasNext()) {
-                        removeGroupNow(removeGroupsIterator.next());
-                        removeGroupsIterator.remove();
-                    }
-                    connection.setAutoCommit(true);
-                }
-                if (!saveAccessLists.isEmpty()) {
-                    connection.setAutoCommit(false);
-                    final Iterator<AccessList> saveAccessListsIterator = saveAccessLists.values().iterator();
-                    while (saveAccessListsIterator.hasNext()) {
-                        saveAccessListNow(saveAccessListsIterator.next());
-                        saveAccessListsIterator.remove();
-                    }
-                    connection.setAutoCommit(true);
-                }
-                if (!removeAccessLists.isEmpty()) {
-                    connection.setAutoCommit(false);
-                    final Iterator<AccessList> removeAccessListsIterator = removeAccessLists.values().iterator();
-                    while (removeAccessListsIterator.hasNext()) {
-                        removeAccessListNow(removeAccessListsIterator.next());
-                        removeAccessListsIterator.remove();
                     }
                     connection.setAutoCommit(true);
                 }

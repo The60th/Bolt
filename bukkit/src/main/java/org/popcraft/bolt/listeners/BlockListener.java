@@ -4,7 +4,6 @@ import com.destroystokyo.paper.event.block.BlockDestroyEvent;
 import com.destroystokyo.paper.event.player.PlayerRecipeBookClickEvent;
 import io.papermc.paper.event.block.BlockBreakBlockEvent;
 import io.papermc.paper.event.block.BlockPreDispenseEvent;
-import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -50,35 +49,23 @@ import org.bukkit.event.player.PlayerTakeLecternBookEvent;
 import org.bukkit.event.world.StructureGrowEvent;
 import org.bukkit.util.Vector;
 import org.popcraft.bolt.BoltPlugin;
-import org.popcraft.bolt.access.Access;
-import org.popcraft.bolt.event.LockBlockEvent;
 import org.popcraft.bolt.lang.Translation;
 import org.popcraft.bolt.listeners.adapter.ConnectedShelves;
 import org.popcraft.bolt.matcher.Match;
 import org.popcraft.bolt.protection.BlockProtection;
 import org.popcraft.bolt.protection.Protection;
-import org.popcraft.bolt.source.Source;
-import org.popcraft.bolt.source.SourceResolver;
-import org.popcraft.bolt.source.SourceTypeResolver;
-import org.popcraft.bolt.source.SourceTypes;
 import org.popcraft.bolt.util.BoltComponents;
 import org.popcraft.bolt.util.BoltPlayer;
 import org.popcraft.bolt.util.Doors;
 import org.popcraft.bolt.util.Mode;
 import org.popcraft.bolt.util.Permission;
-import org.popcraft.bolt.util.Profiles;
-import org.popcraft.bolt.util.ProtectableConfig;
 import org.popcraft.bolt.util.Protections;
 import org.popcraft.bolt.util.SchedulerUtil;
 
 import java.util.List;
 import java.util.Set;
 
-import static org.popcraft.bolt.util.BoltComponents.translateRaw;
-
 public final class BlockListener extends InteractionListener implements Listener {
-    private static final SourceResolver BLOCK_SOURCE_RESOLVER = new SourceTypeResolver(Source.of(SourceTypes.BLOCK));
-    private static final SourceResolver REDSTONE_SOURCE_RESOLVER = new SourceTypeResolver(Source.of(SourceTypes.REDSTONE));
     private static final Set<Material> DYES = Set.of(Material.WHITE_DYE, Material.ORANGE_DYE, Material.MAGENTA_DYE, Material.LIGHT_BLUE_DYE, Material.YELLOW_DYE, Material.LIME_DYE, Material.PINK_DYE, Material.GRAY_DYE, Material.LIGHT_GRAY_DYE, Material.CYAN_DYE, Material.PURPLE_DYE, Material.BLUE_DYE, Material.BROWN_DYE, Material.GREEN_DYE, Material.RED_DYE, Material.BLACK_DYE);
     private static final Tag<Material> WOODEN_SHELVES = Bukkit.getTag(Tag.REGISTRY_BLOCKS, NamespacedKey.minecraft("wooden_shelves"), Material.class);
 
@@ -131,42 +118,20 @@ public final class BlockListener extends InteractionListener implements Listener
                 Doors.handlePlayerInteract(plugin, e);
             }
             if (hasNotifyPermission) {
-                Profiles.findOrLookupProfileByUniqueId(protection.getOwner()).thenAccept(profile -> {
-                    final boolean noSpam = plugin.player(player.getUniqueId()).hasMode(Mode.NOSPAM);
-                    if (noSpam) {
-                        return;
-                    }
-                    final boolean isYou = player.getUniqueId().equals(protection.getOwner());
-                    final String owner = isYou ? translateRaw(Translation.YOU, player) : profile.name();
-                    if (owner == null) {
-                        SchedulerUtil.schedule(plugin, player, () -> {
-                            if (!plugin.isProtected(clicked)) {
-                                return;
-                            }
-                            BoltComponents.sendMessage(
-                                    player,
-                                    Translation.PROTECTION_NOTIFY_GENERIC,
-                                    plugin.isUseActionBar(),
-                                    Placeholder.component(Translation.Placeholder.PROTECTION_TYPE, Protections.protectionType(protection, player)),
-                                    Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player))
-                            );
-                        });
-                    } else if (!isYou || player.hasPermission("bolt.protection.notify.self")) {
-                        SchedulerUtil.schedule(plugin, player, () -> {
-                            if (!plugin.isProtected(clicked)) {
-                                return;
-                            }
-                            BoltComponents.sendMessage(
-                                    player,
-                                    Translation.PROTECTION_NOTIFY,
-                                    plugin.isUseActionBar(),
-                                    Placeholder.component(Translation.Placeholder.PROTECTION_TYPE, Protections.protectionType(protection, player)),
-                                    Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player)),
-                                    Placeholder.component(Translation.Placeholder.PLAYER, Component.text(owner))
-                            );
-                        });
-                    }
-                });
+                final boolean noSpam = plugin.player(player.getUniqueId()).hasMode(Mode.NOSPAM);
+                if (!noSpam) {
+                    SchedulerUtil.schedule(plugin, player, () -> {
+                        if (!plugin.isProtected(clicked)) {
+                            return;
+                        }
+                        BoltComponents.sendMessage(
+                                player,
+                                Translation.PROTECTION_NOTIFY_GENERIC,
+                                plugin.isUseActionBar(),
+                                Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player))
+                        );
+                    });
+                }
             }
             if (e.getItem() != null) {
                 final Material itemType = e.getItem().getType();
@@ -245,47 +210,7 @@ public final class BlockListener extends InteractionListener implements Listener
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
     public void onBlockPlaceMonitor(final BlockPlaceEvent e) {
-        final Player player = e.getPlayer();
-        if (plugin.player(player.getUniqueId()).hasMode(Mode.NOLOCK)) {
-            return;
-        }
-        final Block block = e.getBlock();
-        if (!plugin.isProtectable(block)) {
-            return;
-        }
-        final ProtectableConfig protectableConfig = plugin.getProtectableConfig(block);
-        if (protectableConfig == null) {
-            return;
-        }
-        if (protectableConfig.autoProtectPermission() && !player.hasPermission("bolt.protection.autoprotect.%s".formatted(block.getType().name().toLowerCase()))) {
-            return;
-        }
-        final Access access = protectableConfig.defaultAccess();
-        if (access == null) {
-            return;
-        }
-        if (access.restricted() && !player.hasPermission("bolt.type.protection.%s".formatted(access.type()))) {
-            return;
-        }
-        if (plugin.isProtected(block)) {
-            return;
-        }
-        final LockBlockEvent event = new LockBlockEvent(player, block, true);
-        plugin.getEventBus().post(event);
-        if (event.isCancelled()) {
-            return;
-        }
-        final BlockProtection newProtection = plugin.createProtection(block, player.getUniqueId(), access.type());
-        plugin.saveProtection(newProtection);
-        if (!plugin.player(player.getUniqueId()).hasMode(Mode.NOSPAM)) {
-            BoltComponents.sendMessage(
-                    player,
-                    Translation.CLICK_LOCKED,
-                    plugin.isUseActionBar(),
-                    Placeholder.component(Translation.Placeholder.PROTECTION_TYPE, Protections.protectionType(newProtection, player)),
-                    Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(block, player))
-            );
-        }
+        // No auto-protect in the new item-based lock system
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -327,7 +252,6 @@ public final class BlockListener extends InteractionListener implements Listener
                     player,
                     Translation.CLICK_UNLOCKED,
                     plugin.isUseActionBar(),
-                    Placeholder.component(Translation.Placeholder.PROTECTION_TYPE, Protections.protectionType(protection, player)),
                     Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player))
             );
         }
@@ -412,22 +336,12 @@ public final class BlockListener extends InteractionListener implements Listener
 
     @EventHandler
     public void onBlockPistonExtend(final BlockPistonExtendEvent e) {
-        final Protection pistonProtection = plugin.loadProtection(e.getBlock());
         final List<Block> blocks = e.getBlocks();
         for (final Block block : blocks) {
-            final Protection blockProtection = plugin.findProtection(block);
-            if (blockProtection != null) {
-                // Check for pistons breaking breakable things.
-                final boolean canBreak = pistonProtection != null
-                        && block.getPistonMoveReaction() == PistonMoveReaction.BREAK
-                        && plugin.canAccess(blockProtection, pistonProtection.getOwner(), Permission.DESTROY);
-
-                // Either something that won't be broken, or something the piston isn't allowed to break. Either way,
-                // don't allow the piston to move.
-                if (!canBreak) {
-                    e.setCancelled(true);
-                    return;
-                }
+            if (plugin.isProtected(block)) {
+                // Locked blocks cannot be moved by pistons
+                e.setCancelled(true);
+                return;
             }
         }
     }
@@ -535,7 +449,7 @@ public final class BlockListener extends InteractionListener implements Listener
         if (protection == null) {
             return;
         }
-        if (!plugin.canAccess(protection, REDSTONE_SOURCE_RESOLVER, Permission.REDSTONE)) {
+        if (!plugin.canAccessRedstone(protection)) {
             e.setNewCurrent(e.getOldCurrent());
         }
     }
@@ -563,7 +477,7 @@ public final class BlockListener extends InteractionListener implements Listener
         if (existingProtection == null) {
             return;
         }
-        if (!plugin.canAccess(existingProtection, REDSTONE_SOURCE_RESOLVER, Permission.REDSTONE)) {
+        if (!plugin.canAccessRedstone(existingProtection)) {
             e.setCancelled(true);
         }
     }
@@ -577,13 +491,12 @@ public final class BlockListener extends InteractionListener implements Listener
         }
         final Material placingType = e.getItem().getType();
         if (block.getType().equals(Material.DISPENSER) && Tag.SHULKER_BOXES.isTagged(placingType) && plugin.isProtectable(placingType) && block.getBlockData() instanceof Directional directional) {
-            // Dispensing a shulker places it. If the dispenser was locked, transfer the owner to the shulker.
-            // This event doesn't let us access the placed block, so we end up creating the protection before the block actually exists, by anticipating where it will be placed.
+            // Dispensing a shulker places it. If the dispenser was locked, transfer the lockId to the shulker.
             final Block placeTo = block.getRelative(directional.getFacing());
             if (!placeTo.getType().isAir()) {
                 return;
             }
-            final BlockProtection newProtection = plugin.createProtection(placeTo, existingProtection.getOwner(), existingProtection.getType());
+            final BlockProtection newProtection = plugin.createProtection(placeTo, existingProtection.getLockId());
             newProtection.setBlock(placingType.name());
             plugin.saveProtection(newProtection);
         }
@@ -595,11 +508,17 @@ public final class BlockListener extends InteractionListener implements Listener
         if (entityProtection == null) {
             return;
         }
+        // Non-player interaction with a protected entity: block it unless same lockId
         final Protection blockProtection = plugin.findProtection(e.getBlock());
-        if (blockProtection != null && !plugin.canAccess(entityProtection, blockProtection.getOwner(), Permission.INTERACT)) {
-            e.setCancelled(true);
-        } else if (blockProtection == null && !plugin.canAccess(entityProtection, BLOCK_SOURCE_RESOLVER, Permission.INTERACT)) {
-            e.setCancelled(true);
+        if (blockProtection != null) {
+            if (!plugin.canAccessHopperTransfer(blockProtection, entityProtection)) {
+                e.setCancelled(true);
+            }
+        } else {
+            // No protection on the dispenser block, treat as non-player access
+            if (!plugin.canAccessNonPlayer(entityProtection)) {
+                e.setCancelled(true);
+            }
         }
     }
 
@@ -610,7 +529,7 @@ public final class BlockListener extends InteractionListener implements Listener
         if (existingProtection == null) {
             return;
         }
-        if (!plugin.canAccess(existingProtection, REDSTONE_SOURCE_RESOLVER, Permission.REDSTONE)) {
+        if (!plugin.canAccessRedstone(existingProtection)) {
             e.setCancelled(true);
         }
     }

@@ -3,7 +3,6 @@ package org.popcraft.bolt;
 import net.kyori.event.EventBus;
 import net.kyori.event.SimpleEventBus;
 import org.bstats.bukkit.Metrics;
-import org.bstats.charts.AdvancedPie;
 import org.bstats.charts.DrilldownPie;
 import org.bstats.charts.SimplePie;
 import org.bukkit.Keyed;
@@ -15,8 +14,6 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
@@ -26,32 +23,21 @@ import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.NotNull;
-import org.popcraft.bolt.access.Access;
-import org.popcraft.bolt.access.AccessList;
-import org.popcraft.bolt.access.AccessRegistry;
-import org.popcraft.bolt.access.DefaultAccess;
 import org.popcraft.bolt.command.Arguments;
 import org.popcraft.bolt.command.BoltCommand;
 import org.popcraft.bolt.command.callback.CallbackManager;
 import org.popcraft.bolt.command.impl.AdminCommand;
 import org.popcraft.bolt.command.impl.CallbackCommand;
-import org.popcraft.bolt.command.impl.EditCommand;
-import org.popcraft.bolt.command.impl.GroupCommand;
 import org.popcraft.bolt.command.impl.HelpCommand;
 import org.popcraft.bolt.command.impl.InfoCommand;
 import org.popcraft.bolt.command.impl.LockCommand;
+import org.popcraft.bolt.command.impl.LockpickCommand;
 import org.popcraft.bolt.command.impl.ModeCommand;
-import org.popcraft.bolt.command.impl.ModifyCommand;
-import org.popcraft.bolt.command.impl.PasswordCommand;
-import org.popcraft.bolt.command.impl.TransferCommand;
-import org.popcraft.bolt.command.impl.TrustCommand;
 import org.popcraft.bolt.command.impl.UnlockCommand;
 import org.popcraft.bolt.data.ProfileCache;
 import org.popcraft.bolt.data.SQLStore;
 import org.popcraft.bolt.data.SimpleProfileCache;
 import org.popcraft.bolt.data.SimpleProtectionCache;
-import org.popcraft.bolt.data.migration.lwc.ConfigMigration;
-import org.popcraft.bolt.data.migration.lwc.TrustMigration;
 import org.popcraft.bolt.event.Event;
 import org.popcraft.bolt.lang.Translation;
 import org.popcraft.bolt.lang.Translator;
@@ -123,25 +109,14 @@ import org.popcraft.bolt.matcher.entity.EntityMatcher;
 import org.popcraft.bolt.protection.BlockProtection;
 import org.popcraft.bolt.protection.EntityProtection;
 import org.popcraft.bolt.protection.Protection;
-import org.popcraft.bolt.source.GroupSourceTransformer;
-import org.popcraft.bolt.source.PasswordSourceTransformer;
-import org.popcraft.bolt.source.PlayerSourceTransformer;
-import org.popcraft.bolt.source.PlayerSourceResolver;
-import org.popcraft.bolt.source.Source;
-import org.popcraft.bolt.source.SourceTransformer;
-import org.popcraft.bolt.source.SourceResolver;
-import org.popcraft.bolt.source.SourceTypeRegistry;
-import org.popcraft.bolt.source.SourceTypes;
 import org.popcraft.bolt.util.BlockLocation;
 import org.popcraft.bolt.util.BoltComponents;
+import org.popcraft.bolt.util.BoltItems;
 import org.popcraft.bolt.util.BoltPlayer;
-import org.popcraft.bolt.util.BukkitPlayerResolver;
 import org.popcraft.bolt.util.EnumUtil;
-import org.popcraft.bolt.util.Group;
 import org.popcraft.bolt.util.Mode;
 import org.popcraft.bolt.util.ProtectableConfig;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -177,8 +152,6 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
             new SoulFireMatcher(), new FrogspawnMatcher(), new MangrovePropaguleMatcher(), new MultipleFacingMatcher(),
             new HangingSignMatcher(), new PinkPetalsMatcher());
     private static final List<EntityMatcher> ENTITY_MATCHERS = List.of();
-    private static final Source ADMIN_PERMISSION_SOURCE = Source.of(SourceTypes.PERMISSION, "bolt.admin");
-    private static final Source MOD_PERMISSION_SOURCE = Source.of(SourceTypes.PERMISSION, "bolt.mod");
     private final List<BlockMatcher> enabledBlockMatchers = new ArrayList<>();
     private final List<EntityMatcher> enabledEntityMatchers = new ArrayList<>();
     private final Map<String, BoltCommand> commands = new HashMap<>();
@@ -188,15 +161,15 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
     private final Map<EntityType, ProtectableConfig> protectableEntities = new HashMap<>();
     private final Map<Material, Tag<Material>> materialTags = new HashMap<>();
     private final Set<Mode> defaultModes = new HashSet<>();
-    private String defaultProtectionType = "private";
-    private String defaultAccessType = "normal";
-    private Map<String, SourceTransformer> sourceTransformers = new HashMap<>();
     private boolean useActionBar;
     private boolean doors;
     private boolean doorsOpenIron;
     private boolean doorsOpenDouble;
     private int doorsCloseAfter;
     private boolean doorsFixPlugins;
+    private boolean allowRedstoneOnLocked;
+    private boolean lockpickingEnabled;
+    private int lockpickJamDuration;
     private Bolt bolt;
     private CallbackManager callbackManager;
     private EventBus<Event> eventBus;
@@ -218,6 +191,7 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
                         .collect(Collectors.toMap(String::valueOf, key -> getConfig().getString("database.properties." + key, "")))
         );
         this.bolt = new Bolt(new SimpleProtectionCache(new SQLStore(databaseConfiguration)));
+        BoltItems.init(this);
         reload();
         BoltComponents.enable();
         registerEvents();
@@ -227,9 +201,6 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
         profileCache.load();
         final Metrics metrics = new Metrics(this, 17711);
         registerCustomCharts(metrics, databaseConfiguration);
-        new ConfigMigration(this).convert();
-        // Future: Move this into LWC Migration
-        new TrustMigration(this).convert();
         getServer().getServicesManager().register(BoltAPI.class, this, this, ServicePriority.Normal);
     }
 
@@ -252,34 +223,24 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
         this.doorsOpenDouble = getConfig().getBoolean("doors.open-double", false);
         this.doorsCloseAfter = getConfig().getInt("doors.close-after", 0);
         this.doorsFixPlugins = getConfig().getBoolean("doors.fix-plugins", false);
-        registerAccessTypes();
-        registerProtectableAccess();
+        this.allowRedstoneOnLocked = getConfig().getBoolean("settings.allow-redstone-on-locked", true);
+        this.lockpickingEnabled = getConfig().getBoolean("lockpicking.enabled", false);
+        this.lockpickJamDuration = getConfig().getInt("lockpicking.jam-duration", 60);
+        registerProtectableBlocks();
         nagInvalidHopperConfig();
-        registerAccessSources();
         initializeMatchers();
         loadDefaultModes();
-        registerDefaultSourceTransformers();
     }
 
     private void registerCustomCharts(final Metrics metrics, final SQLStore.Configuration databaseConfiguration) {
         metrics.addCustomChart(new SimplePie("config_language", Translator::selected));
         metrics.addCustomChart(new SimplePie("config_database", databaseConfiguration::type));
-        metrics.addCustomChart(new AdvancedPie("config_protections", () -> {
-            final Map<String, Integer> map = new HashMap<>();
-            bolt.getAccessRegistry().protectionTypes().forEach(type -> map.put(type, 1));
-            return map;
-        }));
-        metrics.addCustomChart(new AdvancedPie("config_access", () -> {
-            final Map<String, Integer> map = new HashMap<>();
-            bolt.getAccessRegistry().accessTypes().forEach(type -> map.put(type, 1));
-            return map;
-        }));
         metrics.addCustomChart(new DrilldownPie("config_blocks", () -> {
             Map<String, Map<String, Integer>> map = new HashMap<>();
             Optional.ofNullable(getConfig().getConfigurationSection("blocks"))
                     .ifPresent(section -> {
                         final Set<String> types = section.getKeys(false);
-                        types.forEach(type -> map.put(type, Map.of(section.getString("%s.autoProtect".formatted(type), "false"), 1)));
+                        types.forEach(type -> map.put(type, Map.of("true", 1)));
                     });
             return map;
         }));
@@ -288,7 +249,7 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
             Optional.ofNullable(getConfig().getConfigurationSection("entities"))
                     .ifPresent(section -> {
                         final Set<String> types = section.getKeys(false);
-                        types.forEach(type -> map.put(type, Map.of(section.getString("%s.autoProtect".formatted(type), "false"), 1)));
+                        types.forEach(type -> map.put(type, Map.of("true", 1)));
                     });
             return map;
         }));
@@ -296,89 +257,57 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
         metrics.addCustomChart(new SimplePie("protections_entities", () -> String.valueOf((int) Math.ceil(bolt.getStore().loadEntityProtections().join().size() / 1000f) * 1000)));
     }
 
-    private void registerAccessTypes() {
-        bolt.getAccessRegistry().unregisterAll();
-        final ConfigurationSection protections = getConfig().getConfigurationSection("protections");
-        if (protections != null) {
-            for (final String typeKey : protections.getKeys(false)) {
-                final String type = typeKey.toLowerCase();
-                final boolean requirePermission = protections.getBoolean("%s.require-permission".formatted(type), false);
-                final List<String> allows = protections.getStringList("%s.allows".formatted(type));
-                final List<String> permissions = allows.isEmpty() ? protections.getStringList(type) : allows;
-                bolt.getAccessRegistry().registerProtectionType(type, requirePermission, new HashSet<>(permissions));
-                final boolean isDefault = protections.getBoolean("%s.default".formatted(type), false);
-                if (isDefault) {
-                    defaultProtectionType = type;
-                }
-            }
-        }
-        final ConfigurationSection access = getConfig().getConfigurationSection("access");
-        if (access != null) {
-            for (final String typeKey : access.getKeys(false)) {
-                final String type = typeKey.toLowerCase();
-                final boolean requirePermission = access.getBoolean("%s.require-permission".formatted(type), false);
-                final List<String> allows = access.getStringList("%s.allows".formatted(type));
-                final List<String> permissions = allows.isEmpty() ? access.getStringList(type) : allows;
-                bolt.getAccessRegistry().registerAccessType(type, requirePermission, new HashSet<>(permissions));
-                final boolean isDefault = access.getBoolean("%s.default".formatted(type), false);
-                if (isDefault) {
-                    defaultAccessType = type;
-                }
-            }
-        }
-    }
-
-    private void registerProtectableAccess() {
+    private void registerProtectableBlocks() {
         protectableBlocks.clear();
         protectableEntities.clear();
         if (DEBUG) {
             for (final Material material : Registry.MATERIAL) {
                 if (material.isBlock()) {
-                    protectableBlocks.put(material, new ProtectableConfig(bolt.getAccessRegistry().getProtectionByType(defaultAccessType).orElse(null), false, false));
+                    protectableBlocks.put(material, new ProtectableConfig(false));
                 }
             }
             for (final EntityType entity : EntityType.values()) {
-                protectableEntities.put(entity, new ProtectableConfig(bolt.getAccessRegistry().getProtectionByType(defaultAccessType).orElse(null), false, false));
+                protectableEntities.put(entity, new ProtectableConfig(false));
             }
         }
-        final ConfigurationSection blocks = getConfig().getConfigurationSection("blocks");
+        final var blocks = getConfig().getConfigurationSection("blocks");
         if (blocks != null) {
             for (final String key : blocks.getKeys(false)) {
-                final String autoProtectType = blocks.getString("%s.autoProtect".formatted(key), "false");
-                final Access defaultAccess = bolt.getAccessRegistry().getProtectionByType(autoProtectType).orElse(null);
                 final boolean lockPermission = blocks.getBoolean("%s.lockPermission".formatted(key), false);
-                final boolean autoProtectPermission = blocks.getBoolean("%s.autoProtectPermission".formatted(key), false);
                 if (key.startsWith("#")) {
-                    final Tag<Material> tag = resolveTagProtectableAccess(Tag.REGISTRY_BLOCKS, Material.class, key.substring(1));
+                    final Tag<Material> tag = resolveTag(Tag.REGISTRY_BLOCKS, Material.class, key.substring(1));
                     if (tag == null) {
                         getLogger().warning(() -> "Invalid block tag defined in config: %s. Skipping.".formatted(key));
                         continue;
                     }
                     tag.getValues().forEach(block -> {
-                        protectableBlocks.put(block, new ProtectableConfig(defaultAccess, lockPermission, autoProtectPermission));
+                        protectableBlocks.put(block, new ProtectableConfig(lockPermission));
                         materialTags.put(block, tag);
                     });
                 } else {
-                    EnumUtil.valueOf(Material.class, key.toUpperCase()).filter(Material::isBlock).ifPresentOrElse(block -> protectableBlocks.put(block, new ProtectableConfig(defaultAccess, lockPermission, autoProtectPermission)), () -> getLogger().warning(() -> "Invalid block defined in config: %s. Skipping.".formatted(key)));
+                    EnumUtil.valueOf(Material.class, key.toUpperCase()).filter(Material::isBlock).ifPresentOrElse(
+                            block -> protectableBlocks.put(block, new ProtectableConfig(lockPermission)),
+                            () -> getLogger().warning(() -> "Invalid block defined in config: %s. Skipping.".formatted(key))
+                    );
                 }
             }
         }
-        final ConfigurationSection entities = getConfig().getConfigurationSection("entities");
+        final var entities = getConfig().getConfigurationSection("entities");
         if (entities != null) {
             for (final String key : entities.getKeys(false)) {
-                final String autoProtectType = entities.getString("%s.autoProtect".formatted(key), "false");
-                final Access defaultAccess = bolt.getAccessRegistry().getProtectionByType(autoProtectType).orElse(null);
                 final boolean lockPermission = entities.getBoolean("%s.lockPermission".formatted(key), false);
-                final boolean autoProtectPermission = entities.getBoolean("%s.autoProtectPermission".formatted(key), false);
                 if (key.startsWith("#")) {
-                    final Tag<EntityType> tag = resolveTagProtectableAccess(Tag.REGISTRY_ENTITY_TYPES, EntityType.class, key.substring(1));
+                    final Tag<EntityType> tag = resolveTag(Tag.REGISTRY_ENTITY_TYPES, EntityType.class, key.substring(1));
                     if (tag == null) {
                         getLogger().warning(() -> "Invalid entity tag defined in config: %s. Skipping.".formatted(key));
                         continue;
                     }
-                    tag.getValues().forEach(entity -> protectableEntities.put(entity, new ProtectableConfig(defaultAccess, lockPermission, autoProtectPermission)));
+                    tag.getValues().forEach(entity -> protectableEntities.put(entity, new ProtectableConfig(lockPermission)));
                 } else {
-                    EnumUtil.valueOf(EntityType.class, key.toUpperCase()).ifPresentOrElse(entity -> protectableEntities.put(entity, new ProtectableConfig(defaultAccess, lockPermission, autoProtectPermission)), () -> getLogger().warning(() -> "Invalid entity defined in config: %s. Skipping.".formatted(key)));
+                    EnumUtil.valueOf(EntityType.class, key.toUpperCase()).ifPresentOrElse(
+                            entity -> protectableEntities.put(entity, new ProtectableConfig(lockPermission)),
+                            () -> getLogger().warning(() -> "Invalid entity defined in config: %s. Skipping.".formatted(key))
+                    );
                 }
             }
         }
@@ -388,34 +317,14 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
         if (getConfig().getBoolean("settings.ignore-hopper-nag", false) || !protectableBlocks.containsKey(Material.HOPPER)) {
             return;
         }
-        final File paperWorldDefaultsFile = Path.of(".").resolve("config/paper-world-defaults.yml").toFile();
-        final YamlConfiguration paperWorldDefaults = YamlConfiguration.loadConfiguration(paperWorldDefaultsFile);
+        final var paperWorldDefaultsFile = Path.of(".").resolve("config/paper-world-defaults.yml").toFile();
+        final var paperWorldDefaults = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(paperWorldDefaultsFile);
         if (paperWorldDefaults.getBoolean("hopper.disable-move-event", false)) {
             getLogger().warning(() -> "The server's Paper config has disable-move-event enabled. As a result, Hopper protections will not function properly. To resolve this issue, please either disable this in the Paper config, or remove hoppers from the blocks list in your Bolt config if you do not want hoppers protected.");
         }
     }
 
-    private void registerAccessSources() {
-        final SourceTypeRegistry sourceTypeRegistry = bolt.getSourceTypeRegistry();
-        sourceTypeRegistry.unregisterAll();
-        final ConfigurationSection sources = getConfig().getConfigurationSection("sources");
-        if (sources == null) {
-            return;
-        }
-        for (final String source : sources.getKeys(false)) {
-            final boolean requirePermission = sources.getBoolean("%s.require-permission".formatted(source), false);
-            final boolean unique = sources.getBoolean("%s.unique".formatted(source), false);
-            sourceTypeRegistry.registerSourceType(source, requirePermission, unique);
-        }
-        if (sourceTypeRegistry.sourceTypes().isEmpty()) {
-            sourceTypeRegistry.registerSourceType(SourceTypes.PLAYER, false, false);
-            sourceTypeRegistry.registerSourceType(SourceTypes.PASSWORD, false, false);
-            sourceTypeRegistry.registerSourceType(SourceTypes.GROUP, false, false);
-            sourceTypeRegistry.registerSourceType(SourceTypes.PERMISSION, true, false);
-        }
-    }
-
-    private <T extends Keyed> Tag<T> resolveTagProtectableAccess(final String registry, final Class<T> clazz, final String name) {
+    private <T extends Keyed> Tag<T> resolveTag(final String registry, final Class<T> clazz, final String name) {
         final NamespacedKey tagKey = NamespacedKey.fromString(name);
         return tagKey == null ? null : getServer().getTag(registry, tagKey, clazz);
     }
@@ -431,7 +340,6 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
                 getLogger().warning(() -> "Invalid default mode defined in config: %s. Skipping.".formatted(modeName));
                 return;
             }
-
             defaultModes.add(mode);
         }
     }
@@ -471,16 +379,11 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
 
     private void registerCommands() {
         commands.put("admin", new AdminCommand(this));
-        commands.put("edit", new EditCommand(this));
-        commands.put("group", new GroupCommand(this));
         commands.put("help", new HelpCommand(this));
         commands.put("info", new InfoCommand(this));
         commands.put("lock", new LockCommand(this));
+        commands.put("lockpick", new LockpickCommand(this));
         commands.put("mode", new ModeCommand(this));
-        commands.put("modify", new ModifyCommand(this));
-        commands.put("password", new PasswordCommand(this));
-        commands.put("transfer", new TransferCommand(this));
-        commands.put("trust", new TrustCommand(this));
         commands.put("unlock", new UnlockCommand(this));
         commands.put("callback", new CallbackCommand(this));
     }
@@ -564,6 +467,18 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
         return doorsFixPlugins;
     }
 
+    public boolean isAllowRedstoneOnLocked() {
+        return allowRedstoneOnLocked;
+    }
+
+    public boolean isLockpickingEnabled() {
+        return lockpickingEnabled;
+    }
+
+    public int getLockpickJamDuration() {
+        return lockpickJamDuration;
+    }
+
     public ProfileCache getProfileCache() {
         return profileCache;
     }
@@ -589,27 +504,12 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
         return bolt.getBoltPlayer(uuid);
     }
 
-    public List<String> getPlayersOwnedGroups(final Player player) {
-        return bolt.getStore().loadGroups().join().stream()
-                .filter(group -> group.getOwner().equals(player.getUniqueId()))
-                .map(Group::getName)
-                .toList();
-    }
-
     public ProtectableConfig getProtectableConfig(final Block block) {
         return protectableBlocks.get(block.getType());
     }
 
     public ProtectableConfig getProtectableConfig(final Entity entity) {
         return protectableEntities.get(entity.getType());
-    }
-
-    public String getDefaultProtectionType() {
-        return defaultProtectionType;
-    }
-
-    public String getDefaultAccessType() {
-        return defaultAccessType;
     }
 
     public BlockMatcher getChestMatcher() {
@@ -655,15 +555,15 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
     }
 
     @Override
-    public BlockProtection createProtection(final Block block, final UUID owner, final String type) {
+    public BlockProtection createProtection(final Block block, final UUID lockId) {
         final long now = System.currentTimeMillis();
-        return new BlockProtection(UUID.randomUUID(), owner, type, now, now, new HashMap<>(), block.getWorld().getName(), block.getX(), block.getY(), block.getZ(), block.getType().name());
+        return new BlockProtection(UUID.randomUUID(), lockId, now, now, 0, block.getWorld().getName(), block.getX(), block.getY(), block.getZ(), block.getType().name());
     }
 
     @Override
-    public EntityProtection createProtection(final Entity entity, final UUID owner, final String type) {
+    public EntityProtection createProtection(final Entity entity, final UUID lockId) {
         final long now = System.currentTimeMillis();
-        return new EntityProtection(entity.getUniqueId(), owner, type, now, now, new HashMap<>(), entity.getType().name());
+        return new EntityProtection(entity.getUniqueId(), lockId, now, now, 0, entity.getType().name());
     }
 
     @Override
@@ -738,132 +638,47 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
 
     @Override
     public boolean canAccess(final Block block, final Player player, final String... permissions) {
-        return canAccess(findProtection(block), player.getUniqueId(), permissions);
+        final Protection protection = findProtection(block);
+        return canAccess(protection, player, permissions);
     }
 
     @Override
     public boolean canAccess(final Entity entity, final Player player, final String... permissions) {
-        return canAccess(findProtection(entity), player.getUniqueId(), permissions);
+        final Protection protection = findProtection(entity);
+        return canAccess(protection, player, permissions);
     }
 
     @Override
     public boolean canAccess(final Protection protection, final Player player, final String... permissions) {
-        return canAccess(protection, player.getUniqueId(), permissions);
-    }
-
-    @Override
-    public boolean canAccess(final Protection protection, final UUID uuid, final String... permissions) {
-        return canAccess(protection, new BukkitPlayerResolver(bolt, uuid), permissions);
-    }
-
-    @Override
-    public boolean canAccess(final Protection protection, final SourceResolver sourceResolver, final String... permissions) {
-        if (protection == null || permissions.length == 0) {
+        if (protection == null) {
             return true;
         }
-        return permissions.length == 1 ? canAccessSingle(protection, sourceResolver, permissions[0]) : canAccessMulti(protection, sourceResolver, permissions);
+        // Admin bypass
+        if (player.hasPermission("bolt.admin")) {
+            return true;
+        }
+        // Key-based access: player must have a key matching the lock's UUID
+        return BoltItems.playerHasKey(player, protection.getLockId());
     }
 
-    private boolean canAccessMulti(final Protection protection, final SourceResolver sourceResolver, final String... permissions) {
-        final Set<String> unresolved = new HashSet<>(Arrays.asList(permissions));
-        final Source ownerSource = Source.player(protection.getOwner());
-        if (sourceResolver.resolve(ownerSource) || sourceResolver.resolve(ADMIN_PERMISSION_SOURCE)) {
-            unresolved.removeAll(DefaultAccess.OWNER);
-            if (unresolved.isEmpty()) {
-                return true;
-            }
-        }
-        if (sourceResolver.resolve(MOD_PERMISSION_SOURCE)) {
-            unresolved.removeAll(DefaultAccess.DISPLAY);
-            if (unresolved.isEmpty()) {
-                return true;
-            }
-        }
-        final AccessRegistry accessRegistry = bolt.getAccessRegistry();
-        final Access protectionType = accessRegistry.getProtectionByType(protection.getType()).orElse(null);
-        if (protectionType != null) {
-            unresolved.removeAll(protectionType.permissions());
-            if (unresolved.isEmpty()) {
-                return true;
-            }
-        }
-        for (final Map.Entry<String, String> entry : protection.getAccess().entrySet()) {
-            if (sourceResolver.resolve(Source.parse(entry.getKey()))) {
-                final Access accessType = accessRegistry.getAccessByType(entry.getValue()).orElse(null);
-                if (accessType != null) {
-                    unresolved.removeAll(accessType.permissions());
-                    if (unresolved.isEmpty()) {
-                        return true;
-                    }
-                }
-            }
-        }
-        final AccessList accessList = bolt.getStore().loadAccessList(protection.getOwner()).join();
-        if (accessList != null) {
-            for (final Map.Entry<String, String> entry : accessList.getAccess().entrySet()) {
-                if (sourceResolver.resolve(Source.parse(entry.getKey()))) {
-                    final Access accessType = accessRegistry.getAccessByType(entry.getValue()).orElse(null);
-                    if (accessType != null) {
-                        unresolved.removeAll(accessType.permissions());
-                        if (unresolved.isEmpty()) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        unresolved.removeIf(permission -> sourceResolver.resolve(Source.of(SourceTypes.PERMISSION, "bolt.permission." + permission)));
-        return unresolved.isEmpty();
+    public boolean canAccessRedstone(final Protection protection) {
+        return protection == null || allowRedstoneOnLocked;
     }
 
-    private boolean canAccessSingle(final Protection protection, final SourceResolver sourceResolver, final String permission) {
-        final Source ownerSource = Source.player(protection.getOwner());
-        if (sourceResolver.resolve(ownerSource) || sourceResolver.resolve(ADMIN_PERMISSION_SOURCE)) {
-            if (DefaultAccess.OWNER.contains(permission)) {
-                return true;
-            }
+    public boolean canAccessHopperTransfer(final Protection sourceProtection, final Protection destinationProtection) {
+        if (sourceProtection == null || destinationProtection == null) {
+            return true;
         }
-        if (sourceResolver.resolve(MOD_PERMISSION_SOURCE)) {
-            if (DefaultAccess.DISPLAY.contains(permission)) {
-                return true;
-            }
-        }
-        final AccessRegistry accessRegistry = bolt.getAccessRegistry();
-        final Access protectionType = accessRegistry.getProtectionByType(protection.getType()).orElse(null);
-        if (protectionType != null) {
-            if (protectionType.permissions().contains(permission)) {
-                return true;
-            }
-        }
-        for (final Map.Entry<String, String> entry : protection.getAccess().entrySet()) {
-            if (sourceResolver.resolve(Source.parse(entry.getKey()))) {
-                final Access accessType = accessRegistry.getAccessByType(entry.getValue()).orElse(null);
-                if (accessType != null) {
-                    if (accessType.permissions().contains(permission)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        final AccessList accessList = bolt.getStore().loadAccessList(protection.getOwner()).join();
-        if (accessList != null) {
-            for (final Map.Entry<String, String> entry : accessList.getAccess().entrySet()) {
-                if (sourceResolver.resolve(Source.parse(entry.getKey()))) {
-                    final Access accessType = accessRegistry.getAccessByType(entry.getValue()).orElse(null);
-                    if (accessType != null) {
-                        if (accessType.permissions().contains(permission)) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        return sourceResolver.resolve(Source.of(SourceTypes.PERMISSION, "bolt.permission." + permission));
+        return sourceProtection.getLockId().equals(destinationProtection.getLockId());
+    }
+
+    public boolean canAccessNonPlayer(final Protection protection) {
+        return protection == null;
     }
 
     @Override
-    public void registerPlayerSourceResolver(PlayerSourceResolver playerSourceResolver) {
-        bolt.getRegisteredPlayerResolvers().add(playerSourceResolver);
+    public boolean isJammed(final Protection protection) {
+        return protection != null && protection.isJammed();
     }
 
     private Protection matchProtection(final Block block) {
@@ -910,20 +725,5 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
             }
         }
         return null;
-    }
-
-    @Override
-    public void registerSourceTransformer(String sourceType, SourceTransformer sourceTransformer) {
-        this.sourceTransformers.put(sourceType, sourceTransformer);
-    }
-
-    private void registerDefaultSourceTransformers() {
-        this.sourceTransformers.put(SourceTypes.PLAYER, new PlayerSourceTransformer(this));
-        this.sourceTransformers.put(SourceTypes.PASSWORD, new PasswordSourceTransformer());
-        this.sourceTransformers.put(SourceTypes.GROUP, new GroupSourceTransformer(this));
-    }
-
-    public SourceTransformer getSourceTransformer(String type) {
-        return this.sourceTransformers.getOrDefault(type, SourceTransformer.DEFAULT);
     }
 }

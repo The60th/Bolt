@@ -8,11 +8,10 @@ import org.popcraft.bolt.command.Arguments;
 import org.popcraft.bolt.command.BoltCommand;
 import org.popcraft.bolt.lang.Translation;
 import org.popcraft.bolt.util.BoltComponents;
-import org.popcraft.bolt.util.Profiles;
-import org.popcraft.bolt.util.SchedulerUtil;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 public class AdminPurgeCommand extends BoltCommand {
     public AdminPurgeCommand(BoltPlugin plugin) {
@@ -25,25 +24,28 @@ public class AdminPurgeCommand extends BoltCommand {
             shortHelp(sender, arguments);
             return;
         }
-        final String owner = arguments.next();
-        Profiles.findOrLookupProfileByName(owner).thenAccept(profile -> {
-            if (profile.uuid() != null) {
-                plugin.loadProtections().stream()
-                        .filter(protection -> protection.getOwner().equals(profile.uuid()))
-                        .forEach(plugin::removeProtection);
-                SchedulerUtil.schedule(plugin, sender, () -> BoltComponents.sendMessage(
-                        sender,
-                        Translation.PURGE,
-                        Placeholder.component(Translation.Placeholder.PLAYER, Component.text(owner))
-                ));
-            } else {
-                SchedulerUtil.schedule(plugin, sender, () -> BoltComponents.sendMessage(
-                        sender,
-                        Translation.PLAYER_NOT_FOUND,
-                        Placeholder.component(Translation.Placeholder.PLAYER, Component.text(owner))
-                ));
-            }
-        });
+        final String lockIdString = arguments.next();
+        final UUID lockId;
+        try {
+            lockId = UUID.fromString(lockIdString);
+        } catch (IllegalArgumentException e) {
+            BoltComponents.sendMessage(
+                    sender,
+                    Translation.GENERIC_NOT_FOUND,
+                    Placeholder.component(Translation.Placeholder.LOCK_ID, Component.text(lockIdString))
+            );
+            return;
+        }
+        final long count = plugin.loadProtections().stream()
+                .filter(protection -> lockId.equals(protection.getLockId()))
+                .peek(plugin::removeProtection)
+                .count();
+        BoltComponents.sendMessage(
+                sender,
+                Translation.PURGE,
+                Placeholder.component(Translation.Placeholder.LOCK_ID, Component.text(lockIdString)),
+                Placeholder.component(Translation.Placeholder.COUNT, Component.text(count))
+        );
     }
 
     @Override
