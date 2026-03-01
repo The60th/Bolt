@@ -55,6 +55,7 @@ import org.popcraft.bolt.matcher.Match;
 import org.popcraft.bolt.protection.BlockProtection;
 import org.popcraft.bolt.protection.Protection;
 import org.popcraft.bolt.util.BoltComponents;
+import org.popcraft.bolt.util.BoltItems;
 import org.popcraft.bolt.util.BoltPlayer;
 import org.popcraft.bolt.util.Doors;
 import org.popcraft.bolt.util.Mode;
@@ -117,20 +118,15 @@ public final class BlockListener extends InteractionListener implements Listener
             if (plugin.isDoors() && canInteract) {
                 Doors.handlePlayerInteract(plugin, e);
             }
-            if (hasNotifyPermission) {
+            if (hasNotifyPermission && canInteract && !BoltItems.playerHasKey(player, protection.getLockId())) {
                 final boolean noSpam = plugin.player(player.getUniqueId()).hasMode(Mode.NOSPAM);
                 if (!noSpam) {
-                    SchedulerUtil.schedule(plugin, player, () -> {
-                        if (!plugin.isProtected(clicked)) {
-                            return;
-                        }
-                        BoltComponents.sendMessage(
-                                player,
-                                Translation.PROTECTION_NOTIFY_GENERIC,
-                                plugin.isUseActionBar(),
-                                Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player))
-                        );
-                    });
+                    BoltComponents.sendMessage(
+                            player,
+                            Translation.PROTECTION_ADMIN_BYPASS,
+                            plugin.isUseActionBar(),
+                            Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player))
+                    );
                 }
             }
             if (e.getItem() != null) {
