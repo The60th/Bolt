@@ -24,6 +24,9 @@ public final class BoltItems {
     private static NamespacedKey KEY_MASTER_KEY;
     private static NamespacedKey KEY_BLANK_KEY;
     private static NamespacedKey LOCKPICK_TIER_KEY;
+    private static NamespacedKey KEYCHAIN_KEY;
+    private static NamespacedKey KEYCHAIN_KEYS_KEY;
+    private static NamespacedKey KEY_NOTE_KEY;
 
     private BoltItems() {
     }
@@ -36,6 +39,9 @@ public final class BoltItems {
         KEY_MASTER_KEY = new NamespacedKey(plugin, "key_master");
         KEY_BLANK_KEY = new NamespacedKey(plugin, "key_blank");
         LOCKPICK_TIER_KEY = new NamespacedKey(plugin, "lockpick_tier");
+        KEYCHAIN_KEY = new NamespacedKey(plugin, "keychain");
+        KEYCHAIN_KEYS_KEY = new NamespacedKey(plugin, "keychain_keys");
+        KEY_NOTE_KEY = new NamespacedKey(plugin, "key_note");
     }
 
     public static UUID getLockId(ItemStack item) {
@@ -84,8 +90,19 @@ public final class BoltItems {
         }
         final PlayerInventory inventory = player.getInventory();
         for (final ItemStack item : inventory.getContents()) {
-            final UUID keyId = getKeyId(item);
-            if (lockId.equals(keyId)) {
+            if (isKeyChain(item)) {
+                for (final String entry : getKeyChainKeys(item)) {
+                    final String[] parts = entry.split(":");
+                    if (parts.length >= 1) {
+                        try {
+                            if (lockId.equals(UUID.fromString(parts[0]))) {
+                                return true;
+                            }
+                        } catch (IllegalArgumentException ignored) {
+                        }
+                    }
+                }
+            } else if (lockId.equals(getKeyId(item))) {
                 return true;
             }
         }
@@ -206,6 +223,69 @@ public final class BoltItems {
         return item;
     }
 
+    public static ItemStack createKeyChain() {
+        final ItemStack item = new ItemStack(Material.BUNDLE);
+        final ItemMeta meta = item.getItemMeta();
+        meta.getPersistentDataContainer().set(KEYCHAIN_KEY, PersistentDataType.BYTE, (byte) 1);
+        meta.displayName(noItalic(NamedTextColor.GREEN).append(Component.text("Key Chain")));
+        meta.lore(List.of(
+                lore("Store your keys here")
+        ));
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    public static boolean isKeyChain(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return false;
+        }
+        final PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
+        return pdc.has(KEYCHAIN_KEY);
+    }
+
+    public static List<String> getKeyChainKeys(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return List.of();
+        }
+        final PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
+        final String value = pdc.get(KEYCHAIN_KEYS_KEY, PersistentDataType.STRING);
+        if (value == null || value.isEmpty()) {
+            return List.of();
+        }
+        return List.of(value.split(","));
+    }
+
+    public static void setKeyChainKeys(ItemStack item, List<String> keys) {
+        if (item == null || !item.hasItemMeta()) {
+            return;
+        }
+        final ItemMeta meta = item.getItemMeta();
+        if (keys.isEmpty()) {
+            meta.getPersistentDataContainer().remove(KEYCHAIN_KEYS_KEY);
+        } else {
+            meta.getPersistentDataContainer().set(KEYCHAIN_KEYS_KEY, PersistentDataType.STRING, String.join(",", keys));
+        }
+        item.setItemMeta(meta);
+    }
+
+    public static void setKeyNote(ItemStack item, String note) {
+        if (item == null || !item.hasItemMeta()) {
+            return;
+        }
+        final ItemMeta meta = item.getItemMeta();
+        meta.getPersistentDataContainer().set(KEY_NOTE_KEY, PersistentDataType.STRING, note);
+        final String baseLore = isMasterKey(item) ? "Can be copied" : "Cannot be copied";
+        meta.lore(List.of(lore(baseLore), lore(note)));
+        item.setItemMeta(meta);
+    }
+
+    public static String getKeyNote(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return null;
+        }
+        return item.getItemMeta().getPersistentDataContainer().get(KEY_NOTE_KEY, PersistentDataType.STRING);
+    }
+
     // --- In-place mutation methods ---
 
     public static void pairKeyBlankToLock(ItemStack item, UUID lockId) {
@@ -228,7 +308,7 @@ public final class BoltItems {
     // --- Styling helpers ---
 
     private static void applyMasterKeyStyle(ItemMeta meta) {
-        meta.displayName(noItalic(NamedTextColor.GOLD).append(Component.text("Master Key")));
+        meta.displayName(noItalic(NamedTextColor.GOLD).append(Component.text("Key")));
         meta.lore(List.of(
                 lore("Can be copied")
         ));

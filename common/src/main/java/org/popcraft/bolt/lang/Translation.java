@@ -77,8 +77,10 @@ public class Translation {
     public static final String GIVE_LOCKPICK = "give_lockpick";
     public static final String GIVE_MASTER_KEY = "give_master_key";
     public static final String GIVE_COPY_KEY = "give_copy_key";
+    public static final String GIVE_KEY_CHAIN = "give_key_chain";
     public static final String GIVE_INVALID_TIER = "give_invalid_tier";
     public static final String GIVE_INVALID_UUID = "give_invalid_uuid";
+    public static final String KEYCHAIN_NOT_A_KEY = "keychain_not_a_key";
     public static final String PAIR_SUCCESS = "pair_success";
     public static final String PAIR_NEED_LOCK_MAIN_HAND = "pair_need_lock_main_hand";
     public static final String PAIR_NEED_KEY_BLANK_OFF_HAND = "pair_need_key_blank_off_hand";
@@ -130,6 +132,10 @@ public class Translation {
     public static final String HELP_COMMAND_LONG_PAIR = "help_command_long_pair";
     public static final String HELP_COMMAND_LONG_COPY = "help_command_long_copy";
     public static final String HELP_COMMAND_LONG_UNLOCK = "help_command_long_unlock";
+    public static final String HELP_COMMAND_SHORT_KEY = "help_command_short_key";
+    public static final String HELP_COMMAND_LONG_KEY = "help_command_long_key";
+    public static final String KEY_NOTE_SET = "key_note_set";
+    public static final String KEY_NEED_KEY_MAIN_HAND = "key_need_key_main_hand";
 
     private Translation() {
     }

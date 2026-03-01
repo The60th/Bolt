@@ -31,6 +31,7 @@ import org.popcraft.bolt.command.impl.CallbackCommand;
 import org.popcraft.bolt.command.impl.CopyCommand;
 import org.popcraft.bolt.command.impl.GiveCommand;
 import org.popcraft.bolt.command.impl.HelpCommand;
+import org.popcraft.bolt.command.impl.KeyCommand;
 import org.popcraft.bolt.command.impl.InfoCommand;
 import org.popcraft.bolt.command.impl.LockCommand;
 import org.popcraft.bolt.command.impl.LockpickCommand;
@@ -47,6 +48,7 @@ import org.popcraft.bolt.lang.Translator;
 import org.popcraft.bolt.listeners.BlockListener;
 import org.popcraft.bolt.listeners.EntityListener;
 import org.popcraft.bolt.listeners.InventoryListener;
+import org.popcraft.bolt.listeners.KeyChainListener;
 import org.popcraft.bolt.listeners.PlayerListener;
 import org.popcraft.bolt.listeners.adapter.ItemTransportingEntityValidateTargetEventListener;
 import org.popcraft.bolt.matcher.Match;
@@ -380,6 +382,7 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
             pluginManager.registerEvents(new ItemTransportingEntityValidateTargetEventListener(entityListener::onItemTransportingEntityValidateTarget), this);
         }
         pluginManager.registerEvents(new InventoryListener(this), this);
+        pluginManager.registerEvents(new KeyChainListener(this), this);
         pluginManager.registerEvents(new PlayerListener(this), this);
     }
 
@@ -388,6 +391,7 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
         commands.put("copy", new CopyCommand(this));
         commands.put("give", new GiveCommand(this));
         commands.put("help", new HelpCommand(this));
+        commands.put("key", new KeyCommand(this));
         commands.put("info", new InfoCommand(this));
         commands.put("lock", new LockCommand(this));
         commands.put("lockpick", new LockpickCommand(this));

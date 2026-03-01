@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.UUID;
 
 public class GiveCommand extends BoltCommand {
-    private static final List<String> TYPES = List.of("lock", "key-blank", "lockpick", "master-key", "copy-key");
+    private static final List<String> TYPES = List.of("lock", "key-blank", "lockpick", "master-key", "copy-key", "key-chain");
     private static final List<String> TIERS = List.of("basic", "reinforced", "fortified");
 
     public GiveCommand(BoltPlugin plugin) {
@@ -100,6 +100,11 @@ public class GiveCommand extends BoltCommand {
                 player.getInventory().addItem(item);
                 BoltComponents.sendMessage(sender, Translation.GIVE_COPY_KEY,
                         Placeholder.component(Translation.Placeholder.LOCK_ID, Component.text(lockId.toString())));
+            }
+            case "key-chain" -> {
+                final ItemStack item = BoltItems.createKeyChain();
+                player.getInventory().addItem(item);
+                BoltComponents.sendMessage(sender, Translation.GIVE_KEY_CHAIN);
             }
             default -> BoltComponents.sendMessage(sender, Translation.COMMAND_INVALID);
         }

@@ -5,6 +5,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.popcraft.bolt.BoltPlugin;
 import org.popcraft.bolt.event.Cancellable;
 import org.popcraft.bolt.event.LockBlockEvent;
@@ -112,6 +113,15 @@ abstract class InteractionListener {
                         throw new IllegalStateException("Protection is not a block or entity");
                     }
                     plugin.saveProtection(newProtection);
+                    if (lockId != null) {
+                        final ItemStack lockItem = player.getInventory().getItemInMainHand();
+                        if (lockItem.getAmount() > 1) {
+                            lockItem.setAmount(lockItem.getAmount() - 1);
+                        } else {
+                            player.getInventory().setItemInMainHand(null);
+                        }
+                    }
+                    player.getInventory().addItem(BoltItems.createMasterKey(effectiveLockId));
                     BoltComponents.sendMessage(
                             player,
                             Translation.CLICK_LOCKED,
@@ -236,6 +246,12 @@ abstract class InteractionListener {
                             plugin.isUseActionBar(),
                             Placeholder.component(Translation.Placeholder.PROTECTION, Protections.displayType(protection, player))
                     );
+                }
+                final ItemStack pickItem = player.getInventory().getItemInMainHand();
+                if (pickItem.getAmount() > 1) {
+                    pickItem.setAmount(pickItem.getAmount() - 1);
+                } else {
+                    player.getInventory().setItemInMainHand(null);
                 }
             }
             case DEBUG -> BoltComponents.sendMessage(
