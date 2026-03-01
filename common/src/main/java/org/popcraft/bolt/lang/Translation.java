@@ -136,6 +136,10 @@ public class Translation {
     public static final String HELP_COMMAND_LONG_KEY = "help_command_long_key";
     public static final String KEY_NOTE_SET = "key_note_set";
     public static final String KEY_NEED_KEY_MAIN_HAND = "key_need_key_main_hand";
+    public static final String LOCKPICK_TEST_STARTING = "lockpick_test_starting";
+    public static final String LOCKPICK_TEST_INVALID_DIFFICULTY = "lockpick_test_invalid_difficulty";
+    public static final String HELP_COMMAND_SHORT_LOCKPICK_TEST = "help_command_short_lockpick_test";
+    public static final String HELP_COMMAND_LONG_LOCKPICK_TEST = "help_command_long_lockpick_test";
 
     private Translation() {
     }

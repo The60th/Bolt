@@ -35,6 +35,7 @@ import org.popcraft.bolt.command.impl.KeyCommand;
 import org.popcraft.bolt.command.impl.InfoCommand;
 import org.popcraft.bolt.command.impl.LockCommand;
 import org.popcraft.bolt.command.impl.LockpickCommand;
+import org.popcraft.bolt.command.impl.LockpickTestCommand;
 import org.popcraft.bolt.command.impl.ModeCommand;
 import org.popcraft.bolt.command.impl.PairCommand;
 import org.popcraft.bolt.command.impl.UnlockCommand;
@@ -395,6 +396,7 @@ public class BoltPlugin extends JavaPlugin implements BoltAPI {
         commands.put("info", new InfoCommand(this));
         commands.put("lock", new LockCommand(this));
         commands.put("lockpick", new LockpickCommand(this));
+        commands.put("lockpicktest", new LockpickTestCommand(this));
         commands.put("mode", new ModeCommand(this));
         commands.put("pair", new PairCommand(this));
         commands.put("unlock", new UnlockCommand(this));

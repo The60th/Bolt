@@ -61,6 +61,8 @@ permissions:
     default: true
   bolt.command.lockpick:
     default: true
+  bolt.command.lockpicktest:
+    default: op
   bolt.command.mode:
     default: true
   bolt.command.unlock:

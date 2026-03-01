@@ -7,6 +7,7 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
     maven("https://repo.codemc.io/repository/maven-public/")
     maven("https://s01.oss.sonatype.org/content/repositories/snapshots/")
+    maven("https://repo.xenondevs.xyz/releases")
 }
 
 dependencies {
@@ -17,6 +18,7 @@ dependencies {
     }
     implementation(group = "org.bstats", name = "bstats-bukkit", version = "3.0.2")
     implementation(group = "org.popcraft", name = "chunky-nbt", version = "1.3.127")
+    implementation("xyz.xenondevs.invui:invui:1.49")
     api(project(":bolt-common"))
     implementation(project(":bolt-folia"))
 }
@@ -41,6 +43,8 @@ tasks {
         relocate("net.kyori.event", "${project.group}.${rootProject.name}.lib.net.kyori.event")
         relocate("org.bstats", "${project.group}.${rootProject.name}.lib.org.bstats")
         relocate("org.popcraft.chunky.nbt", "${project.group}.${rootProject.name}.lib.org.popcraft.chunky.nbt")
+        relocate("xyz.xenondevs.invui", "${project.group}.${rootProject.name}.lib.xyz.xenondevs.invui")
+        relocate("xyz.xenondevs.inventoryaccess", "${project.group}.${rootProject.name}.lib.xyz.xenondevs.inventoryaccess")
         manifest {
             attributes("paperweight-mappings-namespace" to "mojang")
         }
